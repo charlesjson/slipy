@@ -16,7 +16,8 @@
     "test": "node --test",
     "check": "node --check src/main/index.js && node --check src/main/settings.js && node --check src/main/plugins.js && node --check src/preload.js && node --check src/renderer/app.js",
     "dist": "electron-builder --linux AppImage",
-    "dist:deb": "electron-builder --linux deb"
+    "dist:deb": "electron-builder --linux deb",
+    "dist:installer": "bash scripts/build-installer.sh"
   },
   "dependencies": {
     "uiohook-napi": "^1.5.4"

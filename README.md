@@ -47,13 +47,43 @@ npm test
 npm run dist
 ```
 
+### 构建携带 Electron 的离线安装程序
+
+```bash
+npm run dist:installer
+```
+
+该命令先通过 electron-builder 生成完整的 Electron 运行目录，再把 Electron、原生滚轮模块和 Slipy 代码一起封装为：
+
+```text
+dist/Slipy-<版本>-linux-<架构>-installer.run
+dist/Slipy-<版本>-linux-<架构>.tar.gz
+```
+
+最终用户不需要安装 Node.js、npm 或 Electron。安装程序会自动选择标准位置：
+
+```bash
+# 当前用户安装到 ~/.local/share/slipy
+./Slipy-0.1.0-linux-x64-installer.run --user
+
+# 系统安装到 /opt/slipy，并创建 /usr/local/bin/slipy
+sudo ./Slipy-0.1.0-linux-x64-installer.run --system
+```
+
+两种模式都会安装桌面菜单、512×512 图标和命令行入口。安装完成后可使用安装目录中的 `uninstall.sh --uninstall` 卸载，例如：
+
+```bash
+~/.local/share/slipy/uninstall.sh --user --uninstall
+sudo /opt/slipy/uninstall.sh --system --uninstall
+```
+
 单独构建 deb（需要构建机提供 `libcrypt.so.1`）：
 
 ```bash
 npm run dist:deb
 ```
 
-产物位于 `dist/`。
+所有产物位于 `dist/`。
 
 ## 插件
 
