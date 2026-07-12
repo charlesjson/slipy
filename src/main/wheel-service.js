@@ -1,16 +1,18 @@
 'use strict';
 
-const { detectZone, WheelGate } = require('./region-engine');
+const { WheelDispatcher } = require('./wheel-dispatch');
 
+/**
+ * X11 input backend: a global libuiohook listener. Does not work on Wayland,
+ * where compositors isolate input per client — EdgeWheelService covers that.
+ */
 class WheelService {
   constructor({ screen, getSettings, runAction, onStatus = () => {} }) {
     this.screen = screen;
-    this.getSettings = getSettings;
-    this.runAction = runAction;
     this.onStatus = onStatus;
     this.hook = null;
     this.listener = null;
-    this.gate = new WheelGate();
+    this.dispatcher = new WheelDispatcher({ screen, getSettings, runAction });
   }
 
   start() {
@@ -22,6 +24,7 @@ class WheelService {
       this.onStatus({ wheelHook: 'running', error: null });
     } catch (error) {
       this.onStatus({ wheelHook: 'failed', error: error.message });
+      throw error;
     }
   }
 
@@ -29,23 +32,14 @@ class WheelService {
     // libuiohook sends horizontal and vertical wheels to this listener.
     // WheelDirection.VERTICAL is 3.
     if (event.direction !== undefined && event.direction !== 3) return;
-    const settings = this.getSettings();
-    this.gate.cooldownMs = settings.wheelCooldownMs;
     // uiohook uses native X11 pixels while Electron display bounds use DIP.
     // Electron's cursor point keeps the point and bounds in one coordinate space.
     const cursor = this.screen.getCursorScreenPoint?.() || event;
     const point = { x: Number(cursor.x), y: Number(cursor.y) };
-    if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
-    const display = this.screen.getDisplayNearestPoint(point);
-    const zone = detectZone(point, display.bounds, settings);
-    if (!zone) return;
-    const direction = event.rotation < 0 ? 'up' : 'down';
-    if (!this.gate.accept(zone, direction)) return;
-    const mapping = settings.zones[zone];
-    this.runAction(mapping[direction], { pluginAction: mapping[`${direction}PluginAction`] }, {
-      source: 'wheel', zone, direction, point, displayId: display.id
-    });
+    this.dispatcher.dispatch(point, event.rotation < 0 ? 'up' : 'down', { source: 'wheel' });
   }
+
+  applySettings() { /* uiohook needs no rebuild on settings changes */ }
 
   stop() {
     if (!this.hook) return;

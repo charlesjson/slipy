@@ -16,9 +16,10 @@ Slipy 是一个 Linux 桌面效率工具：让鼠标滚轮在屏幕四角和四�
 
 ## 环境要求
 
-- Linux x64/arm64 桌面，推荐 X11 会话。
+- Linux x64/arm64 桌面，X11 与 Wayland 会话均受支持。
 - Node.js 20+ 和 npm（从源码运行时）。
-- 虚拟桌面切换推荐安装 `wmctrl`，后备方案需要 `xdotool`。
+- X11 会话：虚拟桌面切换推荐安装 `wmctrl`，窗口动作需要 `xdotool`。
+- Wayland 会话：KDE Plasma、GNOME、Hyprland 和 Sway 走各自的原生接口（DBus / `hyprctl` / `swaymsg`，通常无需额外安装）；其他合成器可安装 `ydotool` 并启用 `ydotoold` 服务作为通用兜底。
 - 其他动作按需安装 `playerctl`、`brightnessctl` 以及 `wpctl` 或 `pactl`。
 
 Debian/Ubuntu 示例：
@@ -45,7 +46,19 @@ openSUSE：
 sudo zypper install wmctrl xdotool playerctl brightnessctl
 ```
 
-Wayland 默认禁止普通应用读取全局指针事件，滚轮区域功能可能不可用。可以从显示管理器选择 X11/Xorg 会话；托盘、设置页及桌面环境允许的全局快捷键仍可使用。
+### Wayland 支持
+
+Wayland 禁止普通应用读取全局指针事件，因此 Slipy 在 Wayland 会话中不再使用全局钩子，而是在**已配置动作的屏幕边缘**放置透明悬浮条：光标触碰边缘时合成器会把滚轮事件正常派发给悬浮条，无需任何特殊权限。动作执行按检测到的桌面环境选择后端：
+
+| 桌面环境 | 虚拟桌面切换 | 窗口 / 概览动作 |
+| --- | --- | --- |
+| KDE Plasma | KWin DBus（`nextDesktop`/`previousDesktop`） | `kglobalaccel` DBus 快捷键 |
+| GNOME | Shell DBus `Eval`（需要 unsafe 模式），否则 `ydotool` | `FocusSearch` DBus / `ydotool` |
+| Hyprland | `hyprctl dispatch workspace` | `hyprctl dispatch cyclenext` |
+| Sway | `swaymsg workspace` | `ydotool` |
+| 其他 | `ydotool`（Ctrl+Alt+方向键） | `ydotool` |
+
+在“通用设置 → 输入监听方式”中可以强制选择全局钩子或边缘悬浮窗；“关于与诊断”页会显示实际使用的后端和系统命令可用性。注意：悬浮条会占用边缘最外侧的少量像素（默认 8px，仅限已配置动作的边），点击这些像素不会传给下层窗口。
 
 ## 开发运行
 
@@ -129,6 +142,7 @@ sudo /opt/slipy/uninstall.sh --system --uninstall
 ## 技术设计
 
 - Electron 主进程持有所有系统能力，渲染器启用 `contextIsolation`、sandbox 和 CSP。
-- `uiohook-napi` 监听全局滚轮位置；纯函数区域引擎负责八区域判定。
+- 输入采集是可插拔后端：X11 用 `uiohook-napi` 全局钩子，Wayland 用屏幕边缘透明悬浮窗（`edge-wheel-service`），两者共享同一个纯函数区域引擎与防抖调度器（`wheel-dispatch`）。
+- 动作执行同样分层：`desktop-env` 检测会话与桌面家族，`action-backends` 为每个动作生成按优先级排序的命令链（原生合成器接口 → 通用注入工具），逐一尝试直到成功。
 - 配置写入 Electron `userData/settings.json`，使用临时文件 + rename 原子替换。
 - 插件只从独立目录扫描，入口路径不得逃逸插件目录；插件代码拥有主进程权限，因此仅加载可信插件。

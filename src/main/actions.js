@@ -1,6 +1,8 @@
 'use strict';
 
 const { execFile, spawn } = require('node:child_process');
+const { detectEnvironment } = require('./desktop-env');
+const { actionCandidates, workspaceCandidates } = require('./action-backends');
 
 function detached(command, args) {
   return new Promise((resolve, reject) => {
@@ -23,10 +25,26 @@ function exec(command, args = []) {
   });
 }
 
+async function runCandidate(candidate) {
+  // Legacy tuple form [command, args] is still accepted.
+  if (Array.isArray(candidate)) candidate = { command: candidate[0], args: candidate[1] };
+  if (typeof candidate.run === 'function') return candidate.run({ exec, detached });
+  if (candidate.expect) {
+    const stdout = await exec(candidate.command, candidate.args);
+    if (!candidate.expect.test(stdout)) {
+      const error = new Error(`${candidate.command} 拒绝了请求：${stdout.trim() || '空输出'}`);
+      error.code = 'COMMAND_REFUSED';
+      throw error;
+    }
+    return;
+  }
+  return detached(candidate.command, candidate.args);
+}
+
 async function firstAvailable(candidates) {
   let lastError;
-  for (const [command, args] of candidates) {
-    try { return await detached(command, args); } catch (error) {
+  for (const candidate of candidates) {
+    try { return await runCandidate(candidate); } catch (error) {
       lastError = error;
     }
   }
@@ -34,10 +52,11 @@ async function firstAvailable(candidates) {
 }
 
 class ActionExecutor {
-  constructor({ plugins, notify, log = console.error }) {
+  constructor({ plugins, notify, log = console.error, environment = detectEnvironment() }) {
     this.plugins = plugins;
     this.notify = notify;
     this.log = log;
+    this.environment = environment;
   }
 
   async run(action, options = {}, context = {}) {
@@ -47,40 +66,15 @@ class ActionExecutor {
         await this.plugins.runAction(options.pluginAction, context);
         return;
       }
-      if (action === 'workspace-prev') return await this.switchWorkspace(-1);
-      if (action === 'workspace-next') return await this.switchWorkspace(1);
-
-      const commands = {
-        'volume-up': [['wpctl', ['set-volume', '@DEFAULT_AUDIO_SINK@', '5%+']], ['pactl', ['set-sink-volume', '@DEFAULT_SINK@', '+5%']]],
-        'volume-down': [['wpctl', ['set-volume', '@DEFAULT_AUDIO_SINK@', '5%-']], ['pactl', ['set-sink-volume', '@DEFAULT_SINK@', '-5%']]],
-        'brightness-up': [['brightnessctl', ['set', '+5%']]],
-        'brightness-down': [['brightnessctl', ['set', '5%-']]],
-        'media-play-pause': [['playerctl', ['play-pause']]],
-        'media-next': [['playerctl', ['next']]],
-        'media-prev': [['playerctl', ['previous']]],
-        'window-next': [['xdotool', ['key', 'alt+Tab']]],
-        'window-prev': [['xdotool', ['key', 'alt+shift+Tab']]],
-        overview: [['xdotool', ['key', 'super']]],
-        'show-desktop': [['xdotool', ['key', 'super+d']]]
-      };
-      if (!commands[action]) throw new Error(`未知动作：${action}`);
-      await firstAvailable(commands[action]);
+      let candidates;
+      if (action === 'workspace-prev') candidates = workspaceCandidates(-1, this.environment);
+      else if (action === 'workspace-next') candidates = workspaceCandidates(1, this.environment);
+      else candidates = actionCandidates(action, this.environment);
+      if (!candidates) throw new Error(`未知动作：${action}`);
+      await firstAvailable(candidates);
     } catch (error) {
       this.log(`执行动作 ${action} 失败`, error);
       this.notify?.('Slipy 动作执行失败', error.code === 'ENOENT' ? '缺少所需系统命令，请查看“关于与诊断”。' : error.message);
-    }
-  }
-
-  async switchWorkspace(delta) {
-    try {
-      const output = await exec('wmctrl', ['-d']);
-      const desktops = output.trim().split('\n').filter(Boolean);
-      const current = desktops.findIndex((line) => /^\s*\d+\s+\*/.test(line));
-      if (current < 0 || desktops.length < 2) throw new Error('无法获取虚拟桌面');
-      const target = (current + delta + desktops.length) % desktops.length;
-      await detached('wmctrl', ['-s', String(target)]);
-    } catch (error) {
-      await detached('xdotool', ['key', delta < 0 ? 'ctrl+alt+Left' : 'ctrl+alt+Right']);
     }
   }
 }

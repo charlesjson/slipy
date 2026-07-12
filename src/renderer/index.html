@@ -78,6 +78,7 @@
         <label class="range-row"><div><b>边缘宽度</b><span>四条边可响应的宽度</span></div><input id="edge-thickness" type="range" min="1" max="64"><output id="edge-output"></output></label>
         <label class="range-row"><div><b>角落尺寸</b><span>沿屏幕两侧延伸的角落范围</span></div><input id="corner-size" type="range" min="24" max="320"><output id="corner-output"></output></label>
         <label class="range-row"><div><b>滚轮防抖</b><span>同一区域再次触发前的等待时间</span></div><input id="cooldown" type="range" min="50" max="1000" step="10"><output id="cooldown-output"></output></label>
+        <label class="toggle-row"><div><b>输入监听方式</b><span>自动模式按会话类型选择：X11 用全局钩子，Wayland 用边缘悬浮窗</span></div><select id="input-backend"><option value="auto">自动（推荐）</option><option value="uiohook">全局钩子（仅 X11）</option><option value="edge-windows">边缘悬浮窗（全平台）</option></select></label>
         <label class="toggle-row"><div><b>关闭窗口时最小化到托盘</b><span>动作与快捷键继续在后台运行</span></div><input id="close-to-tray" type="checkbox" class="toggle"></label>
         <label class="toggle-row"><div><b>登录后自动启动</b><span>创建符合 freedesktop 规范的自启动项</span></div><input id="start-at-login" type="checkbox" class="toggle"></label>
       </div>
@@ -86,12 +87,14 @@
     <section class="page" id="page-about">
       <div class="intro"><span class="section-number">05 / DIAGNOSTICS</span><h2>关于与诊断</h2><p>检查当前桌面环境和功能运行状态。</p></div>
       <div class="diagnostics">
-        <div class="panel"><span>全局滚轮钩子</span><b id="diag-hook">—</b></div>
+        <div class="panel"><span>滚轮监听</span><b id="diag-hook">—</b></div>
+        <div class="panel"><span>监听后端</span><b id="diag-backend">—</b></div>
         <div class="panel"><span>会话类型</span><b id="diag-session">—</b></div>
         <div class="panel"><span>桌面环境</span><b id="diag-desktop">—</b></div>
         <div class="panel"><span>Slipy 版本</span><b id="diag-version">—</b></div>
+        <div class="panel tools"><span>系统命令可用性</span><div id="diag-tools" class="tool-chips"></div></div>
       </div>
-      <div class="panel notice"><h3>Linux 兼容性</h3><p><b>X11：</b>完整支持全局坐标和滚轮监听。<br><b>Wayland：</b>出于合成器的安全隔离，全局输入监听可能不可用。请使用桌面登录界面中的 X11 会话运行 Slipy。</p><p>虚拟桌面优先使用 <code>wmctrl</code>，窗口动作使用 <code>xdotool</code>；媒体、音量和亮度动作分别需要 <code>playerctl</code>、<code>wpctl/pactl</code>、<code>brightnessctl</code>。</p></div>
+      <div class="panel notice"><h3>Linux 兼容性</h3><p><b>X11：</b>通过全局输入钩子监听滚轮，动作使用 <code>wmctrl</code>/<code>xdotool</code>。<br><b>Wayland：</b>Slipy 在已配置的屏幕边缘放置透明悬浮条来接收滚轮事件；动作优先走桌面环境的原生接口——KDE 与 GNOME 使用 DBus，Hyprland 使用 <code>hyprctl</code>，Sway 使用 <code>swaymsg</code>，其余情况可安装 <code>ydotool</code>（需启用 <code>ydotoold</code> 服务）作为通用兜底。</p><p>媒体、音量和亮度动作分别需要 <code>playerctl</code>、<code>wpctl/pactl</code>、<code>brightnessctl</code>，与显示服务器无关。</p></div>
       <div class="destructive-actions">
         <button id="quit-button" class="ghost">完全退出 Slipy</button>
         <div><button id="uninstall-button" class="danger">卸载 Slipy 并删除全部数据</button><span id="uninstall-note"></span></div>

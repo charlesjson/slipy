@@ -12,6 +12,8 @@ const { ActionExecutor } = require('./actions');
 const { Autostart } = require('./autostart');
 const { HotkeyManager } = require('./hotkeys');
 const { WheelService } = require('./wheel-service');
+const { EdgeWheelService } = require('./edge-wheel-service');
+const { detectEnvironment } = require('./desktop-env');
 const { executeSystemUninstaller, installationFor, startCleanupWorker, userArtifactPaths } = require('./uninstall');
 
 let mainWindow;
@@ -23,9 +25,22 @@ let autostart;
 let hotkeys;
 let wheel;
 let quitting = false;
-let runtimeStatus = { wheelHook: 'starting', error: null, shortcutResults: [] };
+let runtimeStatus = { wheelHook: 'starting', wheelBackend: null, error: null, shortcutResults: [] };
+let toolAvailability = {};
+const environment = detectEnvironment(process.env);
 
 app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal');
+// Edge overlay strips need absolute screen placement, which xdg-shell denies
+// to native Wayland clients; through XWayland (composited into the same
+// stack) placement works. Electron resolves the ozone platform before the
+// main script runs, so appendSwitch is too late — relaunch once with the
+// explicit switch instead. DISPLAY is only set when XWayland is available.
+const needsXwaylandRelaunch = environment.isWayland && process.env.DISPLAY
+  && !process.argv.some((arg) => arg.startsWith('--ozone-platform'));
+if (needsXwaylandRelaunch) {
+  app.relaunch({ args: [...process.argv.slice(1), '--ozone-platform=x11'] });
+  app.exit(0);
+}
 
 function notify(title, body) {
   if (Notification.isSupported()) new Notification({ title, body }).show();
@@ -44,8 +59,10 @@ function getBootstrap() {
     plugins: plugins.publicPlugins(),
     runtime: runtimeStatus,
     environment: {
-      sessionType: process.env.XDG_SESSION_TYPE || 'unknown',
-      desktop: process.env.XDG_CURRENT_DESKTOP || 'unknown',
+      sessionType: environment.sessionType,
+      desktop: environment.raw.currentDesktop || environment.desktop,
+      desktopFamily: environment.desktop,
+      tools: toolAvailability,
       pluginsDirectory: plugins.directory,
       version: app.getVersion(),
       uninstallAvailable: installation.available,
@@ -122,6 +139,63 @@ function applyRuntime(settings) {
   sendState();
 }
 
+function createWheelBackend(kind) {
+  const common = {
+    getSettings: () => store.get(),
+    runAction: (...args) => actions.run(...args),
+    onStatus: (status) => { runtimeStatus = { ...runtimeStatus, ...status }; sendState(); }
+  };
+  if (kind === 'edge-windows') return new EdgeWheelService({ electron: { BrowserWindow, screen, ipcMain }, ...common });
+  return new WheelService({ screen, ...common });
+}
+
+function wheelBackendOrder() {
+  const preference = store.get().inputBackend;
+  if (preference !== 'auto') return [preference];
+  // Wayland compositors block global hooks; edge overlays are the native fit.
+  // On X11 the global hook is better (no pixels claimed at the edges), with
+  // overlays as a fallback when libuiohook fails to load.
+  return environment.isWayland ? ['edge-windows'] : ['uiohook', 'edge-windows'];
+}
+
+function startWheel() {
+  for (const kind of wheelBackendOrder()) {
+    const service = createWheelBackend(kind);
+    try {
+      service.start();
+      wheel = service;
+      wheel.kind = kind;
+      runtimeStatus.wheelBackend = kind;
+      sendState();
+      return;
+    } catch (error) {
+      try { service.stop(); } catch { /* never started */ }
+      runtimeStatus = { ...runtimeStatus, wheelHook: 'failed', wheelBackend: null, error: error.message };
+    }
+  }
+  wheel = null;
+  sendState();
+}
+
+function refreshWheel() {
+  const order = wheelBackendOrder();
+  if (wheel && order.includes(wheel.kind)) {
+    wheel.applySettings();
+    return;
+  }
+  wheel?.stop();
+  wheel = null;
+  startWheel();
+}
+
+function probeTools() {
+  const { execFile } = require('node:child_process');
+  const tools = ['wmctrl', 'xdotool', 'ydotool', 'gdbus', 'hyprctl', 'swaymsg', 'wpctl', 'pactl', 'playerctl', 'brightnessctl'];
+  return Promise.all(tools.map((tool) => new Promise((resolve) => {
+    execFile('which', [tool], (error) => resolve([tool, !error]));
+  }))).then((entries) => { toolAvailability = Object.fromEntries(entries); sendState(); });
+}
+
 function registerIpc() {
   ipcMain.handle('settings:get', () => getBootstrap());
   ipcMain.handle('settings:save', (_event, value) => {
@@ -134,6 +208,7 @@ function registerIpc() {
       runtimeStatus.error = `设置开机启动失败：${error.message}`;
     }
     applyRuntime(store.get());
+    refreshWheel();
     return getBootstrap();
   });
   ipcMain.handle('action:test', (_event, action, pluginAction) => actions.run(action, { pluginAction }, { source: 'test' }));
@@ -181,20 +256,15 @@ async function start() {
   }
 
   plugins = new PluginManager(path.join(app.getPath('userData'), 'plugins'), { notify, log: console.log });
-  actions = new ActionExecutor({ plugins, notify });
+  actions = new ActionExecutor({ plugins, notify, environment });
   hotkeys = new HotkeyManager(globalShortcut, (...args) => actions.run(...args));
   createWindow();
   createTray();
   registerIpc();
   applyRuntime(store.get());
 
-  wheel = new WheelService({
-    screen,
-    getSettings: () => store.get(),
-    runAction: (...args) => actions.run(...args),
-    onStatus: (status) => { runtimeStatus = { ...runtimeStatus, ...status }; sendState(); }
-  });
-  wheel.start();
+  startWheel();
+  probeTools().catch(() => { /* diagnostics only */ });
 }
 
 app.on('before-quit', () => { quitting = true; });
@@ -205,7 +275,9 @@ app.on('will-quit', () => {
 });
 app.on('window-all-closed', () => { /* tray application intentionally remains alive */ });
 
-start().catch((error) => {
-  console.error(error);
-  app.quit();
-});
+if (!needsXwaylandRelaunch) {
+  start().catch((error) => {
+    console.error(error);
+    app.quit();
+  });
+}

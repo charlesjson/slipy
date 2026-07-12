@@ -124,15 +124,26 @@ function renderGeneral() {
   $('#corner-size').value = draft.cornerSize; $('#corner-output').textContent = `${draft.cornerSize} px`;
   $('#cooldown').value = draft.wheelCooldownMs; $('#cooldown-output').textContent = `${draft.wheelCooldownMs} ms`;
   $('#close-to-tray').checked = draft.closeToTray; $('#start-at-login').checked = draft.startAtLogin;
+  $('#input-backend').value = draft.inputBackend || 'auto';
 }
+
+const BACKEND_NAMES = { uiohook: '全局钩子', 'edge-windows': '边缘悬浮窗' };
 
 function renderStatus() {
   const hook = state.runtime.wheelHook;
   const status = $('#hook-status'); status.className = `status-dot ${hook === 'running' ? 'ok' : hook === 'failed' ? 'error' : ''}`;
-  status.querySelector('span').textContent = hook === 'running' ? '全局监听运行中' : hook === 'failed' ? '全局监听不可用' : '正在启动监听…';
+  status.querySelector('span').textContent = hook === 'running' ? '滚轮监听运行中' : hook === 'failed' ? '滚轮监听不可用' : '正在启动监听…';
   $('#diag-hook').textContent = hook === 'running' ? '运行中' : hook === 'failed' ? '不可用' : '启动中';
+  $('#diag-backend').textContent = BACKEND_NAMES[state.runtime.wheelBackend] || '—';
   $('#diag-session').textContent = state.environment.sessionType;
   $('#diag-desktop').textContent = state.environment.desktop;
+  const tools = $('#diag-tools'); tools.replaceChildren();
+  for (const [tool, available] of Object.entries(state.environment.tools || {})) {
+    const chip = document.createElement('span');
+    chip.className = `tool-chip ${available ? 'ok' : ''}`;
+    chip.textContent = `${available ? '✓' : '✕'} ${tool}`;
+    tools.append(chip);
+  }
   $('#diag-version').textContent = state.environment.version;
   const uninstall = $('#uninstall-button');
   uninstall.disabled = !state.environment.uninstallAvailable;
@@ -173,6 +184,7 @@ function bind() {
   for (const [id, output, key, suffix] of [['edge-thickness','edge-output','edgeThickness',' px'], ['corner-size','corner-output','cornerSize',' px'], ['cooldown','cooldown-output','wheelCooldownMs',' ms']]) {
     $(`#${id}`).addEventListener('input', (event) => { draft[key] = Number(event.target.value); $(`#${output}`).textContent = `${event.target.value}${suffix}`; markDirty(); });
   }
+  $('#input-backend').addEventListener('change', (event) => { draft.inputBackend = event.target.value; markDirty(); });
   $('#close-to-tray').addEventListener('change', (event) => { draft.closeToTray = event.target.checked; markDirty(); });
   $('#start-at-login').addEventListener('change', (event) => { draft.startAtLogin = event.target.checked; markDirty(); });
   $('#save-button').addEventListener('click', save);

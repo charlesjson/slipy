@@ -10,6 +10,7 @@ const DEFAULT_SETTINGS = Object.freeze({
   edgeThickness: 8,
   cornerSize: 96,
   wheelCooldownMs: 220,
+  inputBackend: 'auto',
   theme: 'dark',
   closeToTray: true,
   startAtLogin: false,
@@ -35,6 +36,7 @@ function normalizeSettings(input = {}) {
   output.edgeThickness = clamp(input.edgeThickness, 1, 64, output.edgeThickness);
   output.cornerSize = clamp(input.cornerSize, 24, 320, output.cornerSize);
   output.wheelCooldownMs = clamp(input.wheelCooldownMs, 50, 2000, output.wheelCooldownMs);
+  output.inputBackend = ['auto', 'uiohook', 'edge-windows'].includes(input.inputBackend) ? input.inputBackend : 'auto';
   output.theme = input.theme === 'light' ? 'light' : 'dark';
   output.closeToTray = input.closeToTray !== false;
   output.startAtLogin = input.startAtLogin === true;
