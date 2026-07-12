@@ -1,0 +1,7 @@
+{
+  "id": "org.slipy.hello",
+  "name": "Hello Slipy",
+  "version": "1.0.0",
+  "description": "演示如何注册一个通知动作",
+  "main": "index.js"
+}

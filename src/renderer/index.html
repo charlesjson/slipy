@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'">
+  <title>Slipy</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand"><img src="../../assets/icon.svg" alt=""><div><strong>Slipy</strong><span>让屏幕边缘更顺手</span></div></div>
+    <nav aria-label="设置导航">
+      <button class="nav active" data-page="zones"><span>⌁</span>滚轮区域</button>
+      <button class="nav" data-page="shortcuts"><span>⌘</span>全局快捷键</button>
+      <button class="nav" data-page="plugins"><span>◇</span>插件</button>
+      <button class="nav" data-page="general"><span>⚙</span>通用设置</button>
+      <button class="nav" data-page="about"><span>i</span>关于与诊断</button>
+    </nav>
+    <div class="sidebar-footer">
+      <div id="hook-status" class="status-dot"><i></i><span>正在启动监听…</span></div>
+      <button id="hide-button" class="ghost wide">最小化到托盘</button>
+    </div>
+  </aside>
+
+  <main>
+    <header>
+      <div><p class="eyebrow">LINUX DESKTOP CONTROL</p><h1 id="page-title">滚轮区域</h1></div>
+      <div class="header-actions"><span id="save-note"></span><button id="save-button" class="primary">保存设置</button></div>
+    </header>
+
+    <section class="page active" id="page-zones">
+      <div class="intro"><h2>把屏幕边缘变成快捷控制器</h2><p>滚轮进入四个角或四条边时执行指定动作。四角优先于边缘，多显示器会分别识别。</p></div>
+      <div class="zones-layout">
+        <div class="monitor-card">
+          <div class="monitor-label"><span></span>显示器区域预览</div>
+          <div class="monitor" id="zone-grid">
+            <button data-zone="topLeft">左上角</button><button data-zone="top">顶部</button><button data-zone="topRight">右上角</button>
+            <button data-zone="left">左侧</button><div class="monitor-center"><img src="../../assets/icon.svg" alt=""><span>选择一个区域进行配置</span></div><button data-zone="right">右侧</button>
+            <button data-zone="bottomLeft">左下角</button><button data-zone="bottom">底部</button><button data-zone="bottomRight">右下角</button>
+          </div>
+          <p class="hint">提示：边缘宽度无需很大，鼠标指针触碰屏幕最外侧即可触发。</p>
+        </div>
+        <div class="panel zone-editor">
+          <div class="panel-heading"><div><span class="badge">当前区域</span><h3 id="zone-name">左上角</h3></div><button id="test-zone" class="ghost">测试向上动作</button></div>
+          <label>滚轮向上<select id="zone-up"></select></label>
+          <label>滚轮向下<select id="zone-down"></select></label>
+          <div class="callout"><b>动作触发说明</b><span>连续滚动会受到防抖间隔限制，避免一次滚轮手势切换多个桌面。</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="page" id="page-shortcuts">
+      <div class="intro row"><div><h2>全局快捷键</h2><p>即使 Slipy 窗口隐藏，快捷键依然生效。</p></div><button id="add-shortcut" class="secondary">＋ 添加快捷键</button></div>
+      <div id="shortcut-list" class="stack"></div>
+      <div class="empty" id="shortcut-empty"><b>还没有快捷键</b><span>添加一个快捷键，把常用动作放到手边。</span></div>
+    </section>
+
+    <section class="page" id="page-plugins">
+      <div class="intro row"><div><h2>插件扩展</h2><p>插件可以注册新动作，供屏幕区域和全局快捷键调用。</p></div><button id="open-plugins" class="secondary">打开插件目录</button></div>
+      <div id="plugin-list" class="plugin-grid"></div>
+      <div class="panel developer-box"><span class="badge">PLUGIN API V1</span><h3>开发自己的动作插件</h3><p>在插件目录创建文件夹，放入 <code>plugin.json</code> 和入口 JS。启用后，插件动作会出现在所有动作选择器中。</p><pre><code>exports.activate = (api) =&gt; {
+  return api.registerAction({
+    id: 'hello',
+    name: '显示问候',
+    run: ({ source }) =&gt; api.notify('Hello', source)
+  });
+};</code></pre><p class="hint">完整的清单格式与 API 文档见项目中的 <code>docs/plugin-api.md</code>。</p></div>
+    </section>
+
+    <section class="page" id="page-general">
+      <div class="intro"><h2>通用设置</h2><p>调整区域命中范围和后台运行方式。</p></div>
+      <div class="panel settings-panel">
+        <label class="range-row"><div><b>边缘宽度</b><span>四条边可响应的宽度</span></div><input id="edge-thickness" type="range" min="1" max="64"><output id="edge-output"></output></label>
+        <label class="range-row"><div><b>角落尺寸</b><span>沿屏幕两侧延伸的角落范围</span></div><input id="corner-size" type="range" min="24" max="320"><output id="corner-output"></output></label>
+        <label class="range-row"><div><b>滚轮防抖</b><span>同一区域再次触发前的等待时间</span></div><input id="cooldown" type="range" min="50" max="1000" step="10"><output id="cooldown-output"></output></label>
+        <label class="toggle-row"><div><b>关闭窗口时最小化到托盘</b><span>动作与快捷键继续在后台运行</span></div><input id="close-to-tray" type="checkbox" class="toggle"></label>
+        <label class="toggle-row"><div><b>登录后自动启动</b><span>创建符合 freedesktop 规范的自启动项</span></div><input id="start-at-login" type="checkbox" class="toggle"></label>
+      </div>
+    </section>
+
+    <section class="page" id="page-about">
+      <div class="intro"><h2>关于与诊断</h2><p>检查当前桌面环境和功能运行状态。</p></div>
+      <div class="diagnostics">
+        <div class="panel"><span>全局滚轮钩子</span><b id="diag-hook">—</b></div>
+        <div class="panel"><span>会话类型</span><b id="diag-session">—</b></div>
+        <div class="panel"><span>桌面环境</span><b id="diag-desktop">—</b></div>
+        <div class="panel"><span>Slipy 版本</span><b id="diag-version">—</b></div>
+      </div>
+      <div class="panel notice"><h3>Linux 兼容性</h3><p><b>X11：</b>完整支持全局坐标和滚轮监听。<br><b>Wayland：</b>出于合成器的安全隔离，全局输入监听可能不可用。请使用桌面登录界面中的 X11 会话运行 Slipy。</p><p>虚拟桌面优先使用 <code>wmctrl</code>，窗口动作使用 <code>xdotool</code>；媒体、音量和亮度动作分别需要 <code>playerctl</code>、<code>wpctl/pactl</code>、<code>brightnessctl</code>。</p></div>
+      <button id="quit-button" class="danger">完全退出 Slipy</button>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

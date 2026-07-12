@@ -1,0 +1,56 @@
+{
+  "name": "slipy",
+  "version": "0.1.0",
+  "description": "Linux desktop edge wheel actions and global shortcuts",
+  "desktopName": "org.slipy.app",
+  "homepage": "https://github.com/slipy-linux/slipy",
+  "author": {
+    "name": "Slipy Contributors",
+    "email": "maintainers@slipy.app"
+  },
+  "main": "src/main/index.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "test": "node --test",
+    "check": "node --check src/main/index.js && node --check src/main/settings.js && node --check src/main/plugins.js && node --check src/preload.js && node --check src/renderer/app.js",
+    "dist": "electron-builder --linux AppImage",
+    "dist:deb": "electron-builder --linux deb"
+  },
+  "dependencies": {
+    "uiohook-napi": "^1.5.4"
+  },
+  "devDependencies": {
+    "electron": "^43.1.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "org.slipy.app",
+    "productName": "Slipy",
+    "npmRebuild": false,
+    "asarUnpack": [
+      "node_modules/uiohook-napi/**/*"
+    ],
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "linux": {
+      "syncDesktopName": true,
+      "maintainer": "Slipy Contributors <maintainers@slipy.app>",
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility",
+      "icon": "assets/icon.png"
+    }
+  },
+  "allowScripts": {
+    "uiohook-napi@1.5.5": true,
+    "electron-winstaller": false,
+    "electron@43.1.0": true
+  }
+}
