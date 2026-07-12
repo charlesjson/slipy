@@ -12,6 +12,7 @@ test('normalizes limits, actions, shortcuts and plugin configuration', () => {
     edgeThickness: 999,
     cornerSize: 1,
     wheelCooldownMs: 0,
+    theme: 'light',
     zones: { top: { up: 'workspace-next', down: 'bad' } },
     shortcuts: [
       { accelerator: 'Super+Q', action: 'workspace-prev' },
@@ -23,6 +24,7 @@ test('normalizes limits, actions, shortcuts and plugin configuration', () => {
   assert.equal(value.edgeThickness, 64);
   assert.equal(value.cornerSize, 24);
   assert.equal(value.wheelCooldownMs, 50);
+  assert.equal(value.theme, 'light');
   assert.equal(value.zones.top.up, 'workspace-next');
   assert.equal(value.zones.top.down, 'none');
   assert.equal(value.shortcuts.length, 2);

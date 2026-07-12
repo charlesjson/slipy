@@ -12,6 +12,15 @@ let selectedZone = 'topLeft';
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  $$('.theme-picker button').forEach((button) => {
+    const active = button.dataset.theme === theme;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+}
+
 function option(value, text) {
   const element = document.createElement('option');
   element.value = value;
@@ -132,7 +141,7 @@ function renderStatus() {
     : '源码开发模式没有安装内容。';
 }
 
-function renderAll() { renderZone(); renderShortcuts(); renderPlugins(); renderGeneral(); renderStatus(); }
+function renderAll() { applyTheme(draft.theme); renderZone(); renderShortcuts(); renderPlugins(); renderGeneral(); renderStatus(); }
 function markDirty() { $('#save-note').textContent = '有未保存的修改'; }
 
 async function save() {
@@ -150,6 +159,9 @@ function bind() {
     $$('.nav').forEach((item) => item.classList.remove('active')); button.classList.add('active');
     $$('.page').forEach((page) => page.classList.remove('active')); $(`#page-${button.dataset.page}`).classList.add('active');
     $('#page-title').textContent = button.textContent.trim();
+  }));
+  $$('.theme-picker button').forEach((button) => button.addEventListener('click', () => {
+    draft.theme = button.dataset.theme; applyTheme(draft.theme); markDirty();
   }));
   $$('#zone-grid button').forEach((button) => button.addEventListener('click', () => { selectedZone = button.dataset.zone; renderZone(); }));
   $('#zone-up').addEventListener('change', () => commitZone('up'));

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -18,6 +18,10 @@
       <button class="nav" data-page="about"><span>i</span>关于与诊断</button>
     </nav>
     <div class="sidebar-footer">
+      <div class="theme-picker" aria-label="外观模式">
+        <button data-theme="light" title="白天模式"><span>☀</span>白天</button>
+        <button data-theme="dark" title="黑夜模式"><span>☾</span>黑夜</button>
+      </div>
       <div id="hook-status" class="status-dot"><i></i><span>正在启动监听…</span></div>
       <button id="hide-button" class="ghost wide">最小化到托盘</button>
     </div>
@@ -30,7 +34,7 @@
     </header>
 
     <section class="page active" id="page-zones">
-      <div class="intro"><h2>把屏幕边缘变成快捷控制器</h2><p>滚轮进入四个角或四条边时执行指定动作。四角优先于边缘，多显示器会分别识别。</p></div>
+      <div class="intro"><span class="section-number">01 / EDGE WHEEL</span><h2>把屏幕边缘变成快捷控制器</h2><p>滚轮进入四个角或四条边时执行指定动作。四角优先于边缘，多显示器会分别识别。</p></div>
       <div class="zones-layout">
         <div class="monitor-card">
           <div class="monitor-label"><span></span>显示器区域预览</div>
@@ -51,13 +55,13 @@
     </section>
 
     <section class="page" id="page-shortcuts">
-      <div class="intro row"><div><h2>全局快捷键</h2><p>即使 Slipy 窗口隐藏，快捷键依然生效。</p></div><button id="add-shortcut" class="secondary">＋ 添加快捷键</button></div>
+      <div class="intro row"><div><span class="section-number">02 / SHORTCUTS</span><h2>全局快捷键</h2><p>即使 Slipy 窗口隐藏，快捷键依然生效。</p></div><button id="add-shortcut" class="secondary">＋ 添加快捷键</button></div>
       <div id="shortcut-list" class="stack"></div>
       <div class="empty" id="shortcut-empty"><b>还没有快捷键</b><span>添加一个快捷键，把常用动作放到手边。</span></div>
     </section>
 
     <section class="page" id="page-plugins">
-      <div class="intro row"><div><h2>插件扩展</h2><p>插件可以注册新动作，供屏幕区域和全局快捷键调用。</p></div><button id="open-plugins" class="secondary">打开插件目录</button></div>
+      <div class="intro row"><div><span class="section-number">03 / PLUGINS</span><h2>插件扩展</h2><p>插件可以注册新动作，供屏幕区域和全局快捷键调用。</p></div><button id="open-plugins" class="secondary">打开插件目录</button></div>
       <div id="plugin-list" class="plugin-grid"></div>
       <div class="panel developer-box"><span class="badge">PLUGIN API V1</span><h3>开发自己的动作插件</h3><p>在插件目录创建文件夹，放入 <code>plugin.json</code> 和入口 JS。启用后，插件动作会出现在所有动作选择器中。</p><pre><code>exports.activate = (api) =&gt; {
   return api.registerAction({
@@ -69,7 +73,7 @@
     </section>
 
     <section class="page" id="page-general">
-      <div class="intro"><h2>通用设置</h2><p>调整区域命中范围和后台运行方式。</p></div>
+      <div class="intro"><span class="section-number">04 / PREFERENCES</span><h2>通用设置</h2><p>调整区域命中范围和后台运行方式。</p></div>
       <div class="panel settings-panel">
         <label class="range-row"><div><b>边缘宽度</b><span>四条边可响应的宽度</span></div><input id="edge-thickness" type="range" min="1" max="64"><output id="edge-output"></output></label>
         <label class="range-row"><div><b>角落尺寸</b><span>沿屏幕两侧延伸的角落范围</span></div><input id="corner-size" type="range" min="24" max="320"><output id="corner-output"></output></label>
@@ -80,7 +84,7 @@
     </section>
 
     <section class="page" id="page-about">
-      <div class="intro"><h2>关于与诊断</h2><p>检查当前桌面环境和功能运行状态。</p></div>
+      <div class="intro"><span class="section-number">05 / DIAGNOSTICS</span><h2>关于与诊断</h2><p>检查当前桌面环境和功能运行状态。</p></div>
       <div class="diagnostics">
         <div class="panel"><span>全局滚轮钩子</span><b id="diag-hook">—</b></div>
         <div class="panel"><span>会话类型</span><b id="diag-session">—</b></div>
