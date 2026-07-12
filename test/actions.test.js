@@ -14,5 +14,5 @@ test('falls back when an available candidate exits unsuccessfully', async () => 
 test('rejects when every command candidate fails', async () => {
   await assert.rejects(firstAvailable([
     [process.execPath, ['-e', 'process.exit(3)']]
-  ]), /退出码/);
+  ]), /exited with code/);
 });

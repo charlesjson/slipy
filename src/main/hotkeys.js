@@ -1,5 +1,7 @@
 'use strict';
 
+const { t } = require('./i18n');
+
 class HotkeyManager {
   constructor(globalShortcut, runAction) {
     this.globalShortcut = globalShortcut;
@@ -24,7 +26,7 @@ class HotkeyManager {
         ));
       } catch { ok = false; }
       if (ok) this.registered.push(shortcut.accelerator);
-      results.push({ id: shortcut.id, ok, error: ok ? null : '快捷键无效或已被其他程序占用' });
+      results.push({ id: shortcut.id, ok, error: ok ? null : t('error.shortcutTaken') });
     }
     return results;
   }

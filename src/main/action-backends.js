@@ -65,7 +65,7 @@ function wmctrlCycle(delta) {
       const output = await exec('wmctrl', ['-d']);
       const desktops = output.trim().split('\n').filter(Boolean);
       const current = desktops.findIndex((line) => /^\s*\d+\s+\*/.test(line));
-      if (current < 0 || desktops.length < 2) throw new Error('无法获取虚拟桌面列表');
+      if (current < 0 || desktops.length < 2) throw new Error(require('./i18n').t('error.noWorkspaces'));
       const target = (current + delta + desktops.length) % desktops.length;
       await detached('wmctrl', ['-s', String(target)]);
     }

@@ -3,6 +3,7 @@
 const { execFile, spawn } = require('node:child_process');
 const { detectEnvironment } = require('./desktop-env');
 const { actionCandidates, workspaceCandidates } = require('./action-backends');
+const { t } = require('./i18n');
 
 function detached(command, args) {
   return new Promise((resolve, reject) => {
@@ -10,7 +11,7 @@ function detached(command, args) {
     child.once('error', reject);
     child.once('close', (code) => {
       if (code === 0) return resolve();
-      const error = new Error(`${command} 退出码为 ${code}`);
+      const error = new Error(t('error.exitCode', { command, code }));
       error.code = 'COMMAND_FAILED';
       reject(error);
     });
@@ -32,7 +33,7 @@ async function runCandidate(candidate) {
   if (candidate.expect) {
     const stdout = await exec(candidate.command, candidate.args);
     if (!candidate.expect.test(stdout)) {
-      const error = new Error(`${candidate.command} 拒绝了请求：${stdout.trim() || '空输出'}`);
+      const error = new Error(t('error.refused', { command: candidate.command, output: stdout.trim() || t('error.emptyOutput') }));
       error.code = 'COMMAND_REFUSED';
       throw error;
     }
@@ -48,7 +49,7 @@ async function firstAvailable(candidates) {
       lastError = error;
     }
   }
-  throw lastError || new Error('找不到动作所需的系统命令');
+  throw lastError || new Error(t('error.noCommand'));
 }
 
 class ActionExecutor {
@@ -70,11 +71,11 @@ class ActionExecutor {
       if (action === 'workspace-prev') candidates = workspaceCandidates(-1, this.environment);
       else if (action === 'workspace-next') candidates = workspaceCandidates(1, this.environment);
       else candidates = actionCandidates(action, this.environment);
-      if (!candidates) throw new Error(`未知动作：${action}`);
+      if (!candidates) throw new Error(t('error.unknownAction', { action }));
       await firstAvailable(candidates);
     } catch (error) {
-      this.log(`执行动作 ${action} 失败`, error);
-      this.notify?.('Slipy 动作执行失败', error.code === 'ENOENT' ? '缺少所需系统命令，请查看“关于与诊断”。' : error.message);
+      this.log(`action ${action} failed`, error);
+      this.notify?.(t('notify.actionFailedTitle'), error.code === 'ENOENT' ? t('notify.missingCommand') : error.message);
     }
   }
 }

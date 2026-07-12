@@ -1,16 +1,29 @@
 'use strict';
 
-const ZONE_NAMES = {
-  topLeft: '左上角', top: '顶部', topRight: '右上角', left: '左侧', right: '右侧',
-  bottomLeft: '左下角', bottom: '底部', bottomRight: '右下角'
-};
-
 let state;
 let draft;
 let selectedZone = 'topLeft';
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
+
+const FALLBACK_LANGUAGE = 'en';
+
+function t(key, params) {
+  const language = state?.environment?.language || FALLBACK_LANGUAGE;
+  const table = window.SLIPY_LOCALES[language] || window.SLIPY_LOCALES[FALLBACK_LANGUAGE];
+  let template = table[key] ?? window.SLIPY_LOCALES[FALLBACK_LANGUAGE][key] ?? key;
+  if (params) template = template.replace(/\{(\w+)\}/g, (match, name) => (name in params ? String(params[name]) : match));
+  return template;
+}
+
+function applyI18n() {
+  document.documentElement.lang = state.environment.language;
+  for (const element of $$('[data-i18n]')) element.textContent = t(element.dataset.i18n);
+  // *Html keys hold trusted literals from our own dictionary only.
+  for (const element of $$('[data-i18n-html]')) element.innerHTML = t(element.dataset.i18nHtml);
+  for (const element of $$('[data-i18n-title]')) element.title = t(element.dataset.i18nTitle);
+}
 
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
@@ -33,7 +46,7 @@ function fillActionSelect(select, value, pluginAction = '') {
   for (const action of state.actions) select.append(option(action.id, action.name));
   if (state.pluginActions.length) {
     const group = document.createElement('optgroup');
-    group.label = '插件动作';
+    group.label = t('plugins.actionsGroup');
     for (const action of state.pluginActions) group.append(option(`plugin:${action.id}`, action.name));
     select.append(group);
   }
@@ -49,7 +62,7 @@ function readActionSelect(select) {
 
 function renderZone() {
   $$('#zone-grid button').forEach((button) => button.classList.toggle('active', button.dataset.zone === selectedZone));
-  $('#zone-name').textContent = ZONE_NAMES[selectedZone];
+  $('#zone-name').textContent = t(`zone.${selectedZone}`);
   const mapping = draft.zones[selectedZone];
   fillActionSelect($('#zone-up'), mapping.up, mapping.upPluginAction);
   fillActionSelect($('#zone-down'), mapping.down, mapping.downPluginAction);
@@ -68,13 +81,13 @@ function createShortcutRow(shortcut) {
   row.dataset.id = shortcut.id;
   const enabled = document.createElement('input');
   enabled.type = 'checkbox'; enabled.className = 'enabled'; enabled.checked = shortcut.enabled;
-  enabled.title = '启用快捷键';
+  enabled.title = t('shortcuts.enable');
   const accelerator = document.createElement('input');
-  accelerator.type = 'text'; accelerator.value = shortcut.accelerator; accelerator.placeholder = '例如 Super+Shift+W';
+  accelerator.type = 'text'; accelerator.value = shortcut.accelerator; accelerator.placeholder = t('shortcuts.placeholder');
   const action = document.createElement('select');
   fillActionSelect(action, shortcut.action, shortcut.pluginAction);
   const remove = document.createElement('button');
-  remove.className = 'icon-button'; remove.textContent = '×'; remove.title = '删除';
+  remove.className = 'icon-button'; remove.textContent = '×'; remove.title = t('shortcuts.remove');
   row.append(enabled, accelerator, action, remove);
 
   const result = state.runtime.shortcutResults?.find((item) => item.id === shortcut.id);
@@ -98,8 +111,8 @@ function renderPlugins() {
   const list = $('#plugin-list'); list.replaceChildren();
   if (!state.plugins.length) {
     const empty = document.createElement('div'); empty.className = 'empty visible';
-    const title = document.createElement('b'); title.textContent = '尚未发现插件';
-    const text = document.createElement('span'); text.textContent = '打开插件目录，放入插件后保存设置以重新扫描。';
+    const title = document.createElement('b'); title.textContent = t('plugins.noneTitle');
+    const text = document.createElement('span'); text.textContent = t('plugins.noneBody');
     empty.append(title, text); list.append(empty); return;
   }
   for (const plugin of state.plugins) {
@@ -113,8 +126,8 @@ function renderPlugins() {
     toggle.checked = draft.plugins[plugin.id] === true && !plugin.error; toggle.disabled = plugin.id.startsWith('invalid:');
     toggle.addEventListener('change', () => { draft.plugins[plugin.id] = toggle.checked; markDirty(); });
     heading.append(info, toggle); card.append(heading);
-    const description = document.createElement('p'); description.textContent = plugin.description || '此插件没有说明。'; card.append(description);
-    if (plugin.error) { const error = document.createElement('p'); error.className = 'plugin-error'; error.textContent = `加载失败：${plugin.error}`; card.append(error); }
+    const description = document.createElement('p'); description.textContent = plugin.description || t('plugins.noDesc'); card.append(description);
+    if (plugin.error) { const error = document.createElement('p'); error.className = 'plugin-error'; error.textContent = t('plugins.loadError', { message: plugin.error }); card.append(error); }
     list.append(card);
   }
 }
@@ -123,18 +136,18 @@ function renderGeneral() {
   $('#edge-thickness').value = draft.edgeThickness; $('#edge-output').textContent = `${draft.edgeThickness} px`;
   $('#corner-size').value = draft.cornerSize; $('#corner-output').textContent = `${draft.cornerSize} px`;
   $('#cooldown').value = draft.wheelCooldownMs; $('#cooldown-output').textContent = `${draft.wheelCooldownMs} ms`;
-  $('#close-action').value = draft.closeAction || 'ask'; $('#start-at-login').checked = draft.startAtLogin;
   $('#input-backend').value = draft.inputBackend || 'auto';
+  $('#close-action').value = draft.closeAction || 'ask';
+  $('#language').value = draft.language || 'auto';
+  $('#start-at-login').checked = draft.startAtLogin;
 }
-
-const BACKEND_NAMES = { uiohook: '全局钩子', 'edge-windows': '边缘悬浮窗' };
 
 function renderStatus() {
   const hook = state.runtime.wheelHook;
   const status = $('#hook-status'); status.className = `status-dot ${hook === 'running' ? 'ok' : hook === 'failed' ? 'error' : ''}`;
-  status.querySelector('span').textContent = hook === 'running' ? '滚轮监听运行中' : hook === 'failed' ? '滚轮监听不可用' : '正在启动监听…';
-  $('#diag-hook').textContent = hook === 'running' ? '运行中' : hook === 'failed' ? '不可用' : '启动中';
-  $('#diag-backend').textContent = BACKEND_NAMES[state.runtime.wheelBackend] || '—';
+  status.querySelector('span').textContent = hook === 'running' ? t('status.running') : hook === 'failed' ? t('status.failed') : t('status.starting');
+  $('#diag-hook').textContent = hook === 'running' ? t('diag.running') : hook === 'failed' ? t('diag.failed') : t('diag.starting');
+  $('#diag-backend').textContent = state.runtime.wheelBackend ? t(`backend.${state.runtime.wheelBackend}`) : '—';
   $('#diag-session').textContent = state.environment.sessionType;
   $('#diag-desktop').textContent = state.environment.desktop;
   const tools = $('#diag-tools'); tools.replaceChildren();
@@ -147,29 +160,36 @@ function renderStatus() {
   $('#diag-version').textContent = state.environment.version;
   const uninstall = $('#uninstall-button');
   uninstall.disabled = !state.environment.uninstallAvailable;
+  const scopeKey = state.environment.installScope === 'system' ? 'uninstall.scopeSystem'
+    : state.environment.installScope === 'appimage' ? 'uninstall.scopeAppimage' : 'uninstall.scopeUser';
   $('#uninstall-note').textContent = state.environment.uninstallAvailable
-    ? `将删除${state.environment.installScope === 'system' ? '系统级程序及当前用户' : state.environment.installScope === 'appimage' ? 'AppImage 及当前用户' : '程序及当前用户'}的配置、插件、缓存和日志。`
-    : '源码开发模式没有安装内容。';
+    ? t('uninstall.note', { target: t(scopeKey) })
+    : t('uninstall.noteNone');
 }
 
-function renderAll() { applyTheme(draft.theme); renderZone(); renderShortcuts(); renderPlugins(); renderGeneral(); renderStatus(); }
-function markDirty() { $('#save-note').textContent = '有未保存的修改'; }
+function renderAll() { applyI18n(); applyTheme(draft.theme); renderZone(); renderShortcuts(); renderPlugins(); renderGeneral(); renderStatus(); updatePageTitle(); }
+function markDirty() { $('#save-note').textContent = t('save.dirty'); }
+
+function updatePageTitle() {
+  const active = $('.nav.active .nav-label');
+  if (active) $('#page-title').textContent = active.textContent;
+}
 
 async function save() {
-  const button = $('#save-button'); button.disabled = true; button.textContent = '保存中…';
+  const button = $('#save-button'); button.disabled = true; button.textContent = t('save.saving');
   try {
     state = await window.slipy.saveSettings(draft);
     draft = structuredClone(state.settings);
-    renderAll(); $('#save-note').textContent = '已保存';
-    setTimeout(() => { if ($('#save-note').textContent === '已保存') $('#save-note').textContent = ''; }, 1800);
-  } finally { button.disabled = false; button.textContent = '保存设置'; }
+    renderAll(); $('#save-note').textContent = t('save.saved');
+    setTimeout(() => { if ($('#save-note').textContent === t('save.saved')) $('#save-note').textContent = ''; }, 1800);
+  } finally { button.disabled = false; button.textContent = t('save.button'); }
 }
 
 function bind() {
   $$('.nav').forEach((button) => button.addEventListener('click', () => {
     $$('.nav').forEach((item) => item.classList.remove('active')); button.classList.add('active');
     $$('.page').forEach((page) => page.classList.remove('active')); $(`#page-${button.dataset.page}`).classList.add('active');
-    $('#page-title').textContent = button.textContent.trim();
+    updatePageTitle();
   }));
   $$('.theme-picker button').forEach((button) => button.addEventListener('click', () => {
     draft.theme = button.dataset.theme; applyTheme(draft.theme); markDirty();
@@ -186,20 +206,20 @@ function bind() {
   }
   $('#input-backend').addEventListener('change', (event) => { draft.inputBackend = event.target.value; markDirty(); });
   $('#close-action').addEventListener('change', (event) => { draft.closeAction = event.target.value; markDirty(); });
+  $('#language').addEventListener('change', (event) => { draft.language = event.target.value; markDirty(); });
   $('#start-at-login').addEventListener('change', (event) => { draft.startAtLogin = event.target.checked; markDirty(); });
   $('#save-button').addEventListener('click', save);
   $('#open-plugins').addEventListener('click', () => window.slipy.openPluginsDirectory());
-  $('#hide-button').addEventListener('click', () => window.slipy.hide());
   $('#quit-button').addEventListener('click', () => window.slipy.quit());
   $('#uninstall-button').addEventListener('click', async () => {
-    if (!window.confirm('确定完整卸载 Slipy？程序、设置、插件、缓存、日志和自启动项都会被永久删除。')) return;
+    if (!window.confirm(t('uninstall.confirm'))) return;
     const button = $('#uninstall-button');
-    button.disabled = true; button.textContent = '正在卸载…';
+    button.disabled = true; button.textContent = t('uninstall.busy');
     try {
       const result = await window.slipy.uninstall();
       if (result.warnings?.length) window.alert(result.warnings.join('\n'));
     } catch (error) {
-      button.disabled = false; button.textContent = '卸载 Slipy 并删除全部数据';
+      button.disabled = false; button.textContent = t('about.uninstall');
       window.alert(error.message);
     }
   });

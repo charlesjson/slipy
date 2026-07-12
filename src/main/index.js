@@ -14,6 +14,8 @@ const { HotkeyManager } = require('./hotkeys');
 const { WheelService } = require('./wheel-service');
 const { EdgeWheelService } = require('./edge-wheel-service');
 const { detectEnvironment } = require('./desktop-env');
+const i18n = require('./i18n');
+const { t } = i18n;
 const { executeSystemUninstaller, installationFor, startCleanupWorker, userArtifactPaths } = require('./uninstall');
 
 let mainWindow;
@@ -54,11 +56,12 @@ function getBootstrap() {
   const installation = installationFor(process.execPath, process.env.APPIMAGE, { packaged: app.isPackaged, appDir: process.env.APPDIR });
   return {
     settings: store.get(),
-    actions: Object.entries(ACTIONS).filter(([, value]) => !value.internal).map(([id, value]) => ({ id, name: value.label })),
+    actions: Object.entries(ACTIONS).filter(([, value]) => !value.internal).map(([id]) => ({ id, name: t(`action.${id}`) })),
     pluginActions: plugins.publicActions(),
     plugins: plugins.publicPlugins(),
     runtime: runtimeStatus,
     environment: {
+      language: i18n.getLanguage(),
       sessionType: environment.sessionType,
       desktop: environment.raw.currentDesktop || environment.desktop,
       desktopFamily: environment.desktop,
@@ -116,14 +119,14 @@ async function promptCloseAction() {
   try {
     const { response, checkboxChecked } = await dialog.showMessageBox(mainWindow, {
       type: 'question',
-      title: '关闭 Slipy',
-      message: '关闭窗口时要做什么？',
-      detail: '最小化到托盘后，滚轮区域和全局快捷键会继续在后台运行。',
-      buttons: ['最小化到托盘', '完全退出', '取消'],
+      title: t('closeDialog.title'),
+      message: t('closeDialog.message'),
+      detail: t('closeDialog.detail'),
+      buttons: [t('closeDialog.tray'), t('closeDialog.quit'), t('closeDialog.cancel')],
       defaultId: 0,
       cancelId: 2,
       noLink: true,
-      checkboxLabel: '记住我的选择，不再询问',
+      checkboxLabel: t('closeDialog.remember'),
       checkboxChecked: true
     });
     const choice = closeChoiceFromDialog(response, checkboxChecked);
@@ -151,16 +154,21 @@ function showWindow() {
   mainWindow.focus();
 }
 
+function applyTrayLabels() {
+  if (!tray) return;
+  tray.setToolTip(t('tray.tooltip'));
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: t('tray.open'), click: showWindow },
+    { label: t('tray.hide'), click: () => mainWindow?.hide() },
+    { type: 'separator' },
+    { label: t('tray.quit'), click: () => { quitting = true; app.quit(); } }
+  ]));
+}
+
 function createTray() {
   const icon = nativeImage.createFromPath(path.join(__dirname, '../../assets/tray.svg'));
   tray = new Tray(icon);
-  tray.setToolTip('Slipy · 屏幕边缘滚轮');
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: '打开设置', click: showWindow },
-    { label: '隐藏窗口', click: () => mainWindow?.hide() },
-    { type: 'separator' },
-    { label: '退出 Slipy', click: () => { quitting = true; app.quit(); } }
-  ]));
+  applyTrayLabels();
   tray.on('click', showWindow);
 }
 
@@ -245,19 +253,20 @@ function registerIpc() {
     } catch (error) {
       settings.startAtLogin = false;
       store.save(settings);
-      runtimeStatus.error = `设置开机启动失败：${error.message}`;
+      runtimeStatus.error = t('error.autostartSet', { message: error.message });
     }
+    i18n.setLanguage(i18n.resolveLanguage(store.get().language, app.getLocale()));
+    applyTrayLabels();
     applyRuntime(store.get());
     refreshWheel();
     return getBootstrap();
   });
   ipcMain.handle('action:test', (_event, action, pluginAction) => actions.run(action, { pluginAction }, { source: 'test' }));
   ipcMain.handle('plugins:open-directory', () => shell.openPath(plugins.directory));
-  ipcMain.handle('window:hide', () => mainWindow?.hide());
   ipcMain.handle('app:quit', () => { quitting = true; app.quit(); });
   ipcMain.handle('app:uninstall', async () => {
     const installation = installationFor(process.execPath, process.env.APPIMAGE, { packaged: app.isPackaged, appDir: process.env.APPDIR });
-    if (!installation.available) throw new Error('当前是源码开发模式，没有可卸载的安装包。');
+    if (!installation.available) throw new Error(t('error.uninstallDev'));
     const electronPaths = ['userData', 'sessionData', 'logs', 'crashDumps'].flatMap((name) => {
       try { return [app.getPath(name)]; } catch { return []; }
     });
@@ -285,6 +294,7 @@ async function start() {
 
   store = new SettingsStore(path.join(app.getPath('userData'), 'settings.json'));
   const settings = store.load();
+  i18n.setLanguage(i18n.resolveLanguage(settings.language, app.getLocale()));
   configureAutostart();
   try {
     // Refreshes AppImage paths after the application is moved or upgraded.
@@ -292,7 +302,7 @@ async function start() {
   } catch (error) {
     settings.startAtLogin = false;
     store.save(settings);
-    runtimeStatus.error = `更新开机启动项失败：${error.message}`;
+    runtimeStatus.error = t('error.autostartUpdate', { message: error.message });
   }
 
   plugins = new PluginManager(path.join(app.getPath('userData'), 'plugins'), { notify, log: console.log });

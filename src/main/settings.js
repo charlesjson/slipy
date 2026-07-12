@@ -11,6 +11,7 @@ const DEFAULT_SETTINGS = Object.freeze({
   cornerSize: 96,
   wheelCooldownMs: 220,
   inputBackend: 'auto',
+  language: 'auto',
   theme: 'dark',
   closeAction: 'ask',
   startAtLogin: false,
@@ -37,6 +38,7 @@ function normalizeSettings(input = {}) {
   output.cornerSize = clamp(input.cornerSize, 24, 320, output.cornerSize);
   output.wheelCooldownMs = clamp(input.wheelCooldownMs, 50, 2000, output.wheelCooldownMs);
   output.inputBackend = ['auto', 'uiohook', 'edge-windows'].includes(input.inputBackend) ? input.inputBackend : 'auto';
+  output.language = ['auto', 'zh-CN', 'en'].includes(input.language) ? input.language : 'auto';
   output.theme = input.theme === 'light' ? 'light' : 'dark';
   if (['ask', 'tray', 'quit'].includes(input.closeAction)) {
     output.closeAction = input.closeAction;

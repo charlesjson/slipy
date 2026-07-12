@@ -41,6 +41,13 @@ test('close action defaults to ask, validates values and migrates closeToTray', 
   assert.equal(normalizeSettings({ closeToTray: false }).closeAction, 'quit');
 });
 
+test('language preference validates and defaults to auto', () => {
+  assert.equal(normalizeSettings({}).language, 'auto');
+  assert.equal(normalizeSettings({ language: 'en' }).language, 'en');
+  assert.equal(normalizeSettings({ language: 'zh-CN' }).language, 'zh-CN');
+  assert.equal(normalizeSettings({ language: 'fr' }).language, 'auto');
+});
+
 test('close dialog result maps buttons to actions and remembers only when asked', () => {
   assert.deepEqual(closeChoiceFromDialog(0, true), { action: 'tray', remember: true });
   assert.deepEqual(closeChoiceFromDialog(0, false), { action: 'tray', remember: false });

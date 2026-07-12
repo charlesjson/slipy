@@ -27,5 +27,5 @@ test('rejects plugin entry paths that escape their directory', () => {
   fs.writeFileSync(path.join(plugin, 'plugin.json'), JSON.stringify({ id: 'org.test.bad', name: 'Bad', main: '../escape.js' }));
   const manager = new PluginManager(root);
   const result = manager.scan();
-  assert.match(result[0].error, /插件目录/);
+  assert.match(result[0].error, /inside the plugin directory/);
 });

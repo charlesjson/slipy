@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { EventEmitter } = require('node:events');
+const { t } = require('./i18n');
 
 const ID_PATTERN = /^[a-z0-9][a-z0-9._-]{1,63}$/i;
 
@@ -24,10 +25,10 @@ class PluginManager extends EventEmitter {
       const root = path.join(this.directory, entry.name);
       try {
         const manifest = JSON.parse(fs.readFileSync(path.join(root, 'plugin.json'), 'utf8'));
-        if (!ID_PATTERN.test(manifest.id) || typeof manifest.name !== 'string') throw new Error('插件 id 或 name 无效');
+        if (!ID_PATTERN.test(manifest.id) || typeof manifest.name !== 'string') throw new Error(t('error.pluginManifest'));
         const main = typeof manifest.main === 'string' ? manifest.main : 'index.js';
         const mainPath = path.resolve(root, main);
-        if (!mainPath.startsWith(`${path.resolve(root)}${path.sep}`)) throw new Error('main 必须位于插件目录中');
+        if (!mainPath.startsWith(`${path.resolve(root)}${path.sep}`)) throw new Error(t('error.pluginEscape'));
         plugins.push({
           id: manifest.id,
           name: manifest.name.slice(0, 100),
@@ -58,7 +59,7 @@ class PluginManager extends EventEmitter {
       try {
         delete require.cache[require.resolve(plugin.mainPath)];
         const moduleValue = require(plugin.mainPath);
-        if (typeof moduleValue.activate !== 'function') throw new Error('插件必须导出 activate(api)');
+        if (typeof moduleValue.activate !== 'function') throw new Error(t('error.pluginActivate'));
         const api = this.createApi(plugin);
         const disposer = moduleValue.activate(Object.freeze(api));
         if (typeof disposer === 'function') this.disposers.push(disposer);
@@ -77,10 +78,10 @@ class PluginManager extends EventEmitter {
       plugin: Object.freeze({ id: plugin.id, root: plugin.root }),
       registerAction: (action) => {
         if (!action || !ID_PATTERN.test(action.id) || typeof action.name !== 'string' || typeof action.run !== 'function') {
-          throw new Error('registerAction 需要合法的 id、name 和 run(context)');
+          throw new Error(t('error.pluginRegister'));
         }
         const fullId = `${plugin.id}:${action.id}`;
-        if (this.actions.has(fullId)) throw new Error(`动作重复：${fullId}`);
+        if (this.actions.has(fullId)) throw new Error(t('error.pluginDuplicate', { id: fullId }));
         this.actions.set(fullId, {
           id: fullId,
           pluginId: plugin.id,
@@ -97,7 +98,7 @@ class PluginManager extends EventEmitter {
 
   async runAction(id, context) {
     const action = this.actions.get(id);
-    if (!action) throw new Error(`插件动作不存在或插件未启用：${id}`);
+    if (!action) throw new Error(t('error.pluginMissing', { id }));
     return action.run(Object.freeze({ ...context, pluginId: action.pluginId }));
   }
 

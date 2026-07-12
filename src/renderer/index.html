@@ -9,98 +9,99 @@
 </head>
 <body>
   <aside class="sidebar">
-    <div class="brand"><img src="../../assets/icon.svg" alt=""><div><strong>Slipy</strong><span>让屏幕边缘更顺手</span></div></div>
-    <nav aria-label="设置导航">
-      <button class="nav active" data-page="zones"><span>⌁</span>滚轮区域</button>
-      <button class="nav" data-page="shortcuts"><span>⌘</span>全局快捷键</button>
-      <button class="nav" data-page="plugins"><span>◇</span>插件</button>
-      <button class="nav" data-page="general"><span>⚙</span>通用设置</button>
-      <button class="nav" data-page="about"><span>i</span>关于与诊断</button>
+    <div class="brand"><img src="../../assets/icon.svg" alt=""><div><strong>Slipy</strong><span data-i18n="brand.tagline">让屏幕边缘更顺手</span></div></div>
+    <nav aria-label="Slipy">
+      <button class="nav active" data-page="zones"><span class="nav-icon">⌁</span><span class="nav-label" data-i18n="nav.zones">滚轮区域</span></button>
+      <button class="nav" data-page="shortcuts"><span class="nav-icon">⌘</span><span class="nav-label" data-i18n="nav.shortcuts">全局快捷键</span></button>
+      <button class="nav" data-page="plugins"><span class="nav-icon">◇</span><span class="nav-label" data-i18n="nav.plugins">插件</span></button>
+      <button class="nav" data-page="general"><span class="nav-icon">⚙</span><span class="nav-label" data-i18n="nav.general">通用设置</span></button>
+      <button class="nav" data-page="about"><span class="nav-icon">i</span><span class="nav-label" data-i18n="nav.about">关于与诊断</span></button>
     </nav>
     <div class="sidebar-footer">
-      <div class="theme-picker" aria-label="外观模式">
-        <button data-theme="light" title="白天模式"><span>☀</span>白天</button>
-        <button data-theme="dark" title="黑夜模式"><span>☾</span>黑夜</button>
+      <div class="theme-picker" aria-label="theme">
+        <button data-theme="light" data-i18n-title="theme.lightTitle"><span class="nav-icon">☀</span><span data-i18n="theme.light">白天</span></button>
+        <button data-theme="dark" data-i18n-title="theme.darkTitle"><span class="nav-icon">☾</span><span data-i18n="theme.dark">黑夜</span></button>
       </div>
-      <div id="hook-status" class="status-dot"><i></i><span>正在启动监听…</span></div>
-      <button id="hide-button" class="ghost wide">最小化到托盘</button>
+      <div id="hook-status" class="status-dot"><i></i><span data-i18n="status.starting">正在启动监听…</span></div>
     </div>
   </aside>
 
   <main>
     <header>
-      <div><p class="eyebrow">LINUX DESKTOP CONTROL</p><h1 id="page-title">滚轮区域</h1></div>
-      <div class="header-actions"><span id="save-note"></span><button id="save-button" class="primary">保存设置</button></div>
+      <div><p class="eyebrow">LINUX DESKTOP CONTROL</p><h1 id="page-title" data-i18n="nav.zones">滚轮区域</h1></div>
+      <div class="header-actions"><span id="save-note"></span><button id="save-button" class="primary" data-i18n="save.button">保存设置</button></div>
     </header>
 
     <section class="page active" id="page-zones">
-      <div class="intro"><span class="section-number">01 / EDGE WHEEL</span><h2>把屏幕边缘变成快捷控制器</h2><p>滚轮进入四个角或四条边时执行指定动作。四角优先于边缘，多显示器会分别识别。</p></div>
+      <div class="intro"><span class="section-number">01 / EDGE WHEEL</span><h2 data-i18n="zones.heading">把屏幕边缘变成快捷控制器</h2><p data-i18n="zones.intro">滚轮进入四个角或四条边时执行指定动作。四角优先于边缘，多显示器会分别识别。</p></div>
       <div class="zones-layout">
         <div class="monitor-card">
-          <div class="monitor-label"><span></span>显示器区域预览</div>
+          <div class="monitor-label"><span></span><em data-i18n="zones.preview">显示器区域预览</em></div>
           <div class="monitor" id="zone-grid">
-            <button data-zone="topLeft">左上角</button><button data-zone="top">顶部</button><button data-zone="topRight">右上角</button>
-            <button data-zone="left">左侧</button><div class="monitor-center"><img src="../../assets/icon.svg" alt=""><span>选择一个区域进行配置</span></div><button data-zone="right">右侧</button>
-            <button data-zone="bottomLeft">左下角</button><button data-zone="bottom">底部</button><button data-zone="bottomRight">右下角</button>
+            <button data-zone="topLeft" data-i18n="zone.topLeft">左上角</button><button data-zone="top" data-i18n="zone.top">顶部</button><button data-zone="topRight" data-i18n="zone.topRight">右上角</button>
+            <button data-zone="left" data-i18n="zone.left">左侧</button><div class="monitor-center"><img src="../../assets/icon.svg" alt=""><span data-i18n="zones.pick">选择一个区域进行配置</span></div><button data-zone="right" data-i18n="zone.right">右侧</button>
+            <button data-zone="bottomLeft" data-i18n="zone.bottomLeft">左下角</button><button data-zone="bottom" data-i18n="zone.bottom">底部</button><button data-zone="bottomRight" data-i18n="zone.bottomRight">右下角</button>
           </div>
-          <p class="hint">提示：边缘宽度无需很大，鼠标指针触碰屏幕最外侧即可触发。</p>
+          <p class="hint" data-i18n="zones.hint">提示：边缘宽度无需很大，鼠标指针触碰屏幕最外侧即可触发。</p>
         </div>
         <div class="panel zone-editor">
-          <div class="panel-heading"><div><span class="badge">当前区域</span><h3 id="zone-name">左上角</h3></div><button id="test-zone" class="ghost">测试向上动作</button></div>
-          <label>滚轮向上<select id="zone-up"></select></label>
-          <label>滚轮向下<select id="zone-down"></select></label>
-          <div class="callout"><b>动作触发说明</b><span>连续滚动会受到防抖间隔限制，避免一次滚轮手势切换多个桌面。</span></div>
+          <div class="panel-heading"><div><span class="badge" data-i18n="zones.current">当前区域</span><h3 id="zone-name">左上角</h3></div><button id="test-zone" class="ghost" data-i18n="zones.test">测试向上动作</button></div>
+          <label><span data-i18n="zones.up">滚轮向上</span><select id="zone-up"></select></label>
+          <label><span data-i18n="zones.down">滚轮向下</span><select id="zone-down"></select></label>
+          <div class="callout"><b data-i18n="zones.calloutTitle">动作触发说明</b><span data-i18n="zones.calloutBody">连续滚动会受到防抖间隔限制，避免一次滚轮手势切换多个桌面。</span></div>
         </div>
       </div>
     </section>
 
     <section class="page" id="page-shortcuts">
-      <div class="intro row"><div><span class="section-number">02 / SHORTCUTS</span><h2>全局快捷键</h2><p>即使 Slipy 窗口隐藏，快捷键依然生效。</p></div><button id="add-shortcut" class="secondary">＋ 添加快捷键</button></div>
+      <div class="intro row"><div><span class="section-number">02 / SHORTCUTS</span><h2 data-i18n="shortcuts.heading">全局快捷键</h2><p data-i18n="shortcuts.intro">即使 Slipy 窗口隐藏，快捷键依然生效。</p></div><button id="add-shortcut" class="secondary" data-i18n="shortcuts.add">＋ 添加快捷键</button></div>
       <div id="shortcut-list" class="stack"></div>
-      <div class="empty" id="shortcut-empty"><b>还没有快捷键</b><span>添加一个快捷键，把常用动作放到手边。</span></div>
+      <div class="empty" id="shortcut-empty"><b data-i18n="shortcuts.emptyTitle">还没有快捷键</b><span data-i18n="shortcuts.emptyBody">添加一个快捷键，把常用动作放到手边。</span></div>
     </section>
 
     <section class="page" id="page-plugins">
-      <div class="intro row"><div><span class="section-number">03 / PLUGINS</span><h2>插件扩展</h2><p>插件可以注册新动作，供屏幕区域和全局快捷键调用。</p></div><button id="open-plugins" class="secondary">打开插件目录</button></div>
+      <div class="intro row"><div><span class="section-number">03 / PLUGINS</span><h2 data-i18n="plugins.heading">插件扩展</h2><p data-i18n="plugins.intro">插件可以注册新动作，供屏幕区域和全局快捷键调用。</p></div><button id="open-plugins" class="secondary" data-i18n="plugins.openDir">打开插件目录</button></div>
       <div id="plugin-list" class="plugin-grid"></div>
-      <div class="panel developer-box"><span class="badge">PLUGIN API V1</span><h3>开发自己的动作插件</h3><p>在插件目录创建文件夹，放入 <code>plugin.json</code> 和入口 JS。启用后，插件动作会出现在所有动作选择器中。</p><pre><code>exports.activate = (api) =&gt; {
+      <div class="panel developer-box"><span class="badge">PLUGIN API V1</span><h3 data-i18n="plugins.devTitle">开发自己的动作插件</h3><p data-i18n-html="plugins.devBodyHtml">在插件目录创建文件夹，放入 <code>plugin.json</code> 和入口 JS。启用后，插件动作会出现在所有动作选择器中。</p><pre><code>exports.activate = (api) =&gt; {
   return api.registerAction({
     id: 'hello',
     name: '显示问候',
     run: ({ source }) =&gt; api.notify('Hello', source)
   });
-};</code></pre><p class="hint">完整的清单格式与 API 文档见项目中的 <code>docs/plugin-api.md</code>。</p></div>
+};</code></pre><p class="hint" data-i18n-html="plugins.devHintHtml">完整的清单格式与 API 文档见项目中的 <code>docs/plugin-api.md</code>。</p></div>
     </section>
 
     <section class="page" id="page-general">
-      <div class="intro"><span class="section-number">04 / PREFERENCES</span><h2>通用设置</h2><p>调整区域命中范围和后台运行方式。</p></div>
+      <div class="intro"><span class="section-number">04 / PREFERENCES</span><h2 data-i18n="general.heading">通用设置</h2><p data-i18n="general.intro">调整区域命中范围和后台运行方式。</p></div>
       <div class="panel settings-panel">
-        <label class="range-row"><div><b>边缘宽度</b><span>四条边可响应的宽度</span></div><input id="edge-thickness" type="range" min="1" max="64"><output id="edge-output"></output></label>
-        <label class="range-row"><div><b>角落尺寸</b><span>沿屏幕两侧延伸的角落范围</span></div><input id="corner-size" type="range" min="24" max="320"><output id="corner-output"></output></label>
-        <label class="range-row"><div><b>滚轮防抖</b><span>同一区域再次触发前的等待时间</span></div><input id="cooldown" type="range" min="50" max="1000" step="10"><output id="cooldown-output"></output></label>
-        <label class="toggle-row"><div><b>输入监听方式</b><span>自动模式按会话类型选择：X11 用全局钩子，Wayland 用边缘悬浮窗</span></div><select id="input-backend"><option value="auto">自动（推荐）</option><option value="uiohook">全局钩子（仅 X11）</option><option value="edge-windows">边缘悬浮窗（全平台）</option></select></label>
-        <label class="toggle-row"><div><b>点击关闭按钮时</b><span>最小化到托盘后，动作与快捷键继续在后台运行</span></div><select id="close-action"><option value="ask">每次询问</option><option value="tray">最小化到托盘</option><option value="quit">完全退出</option></select></label>
-        <label class="toggle-row"><div><b>登录后自动启动</b><span>创建符合 freedesktop 规范的自启动项</span></div><input id="start-at-login" type="checkbox" class="toggle"></label>
+        <label class="range-row"><div><b data-i18n="general.edge">边缘宽度</b><span data-i18n="general.edgeDesc">四条边可响应的宽度</span></div><input id="edge-thickness" type="range" min="1" max="64"><output id="edge-output"></output></label>
+        <label class="range-row"><div><b data-i18n="general.corner">角落尺寸</b><span data-i18n="general.cornerDesc">沿屏幕两侧延伸的角落范围</span></div><input id="corner-size" type="range" min="24" max="320"><output id="corner-output"></output></label>
+        <label class="range-row"><div><b data-i18n="general.cooldown">滚轮防抖</b><span data-i18n="general.cooldownDesc">同一区域再次触发前的等待时间</span></div><input id="cooldown" type="range" min="50" max="1000" step="10"><output id="cooldown-output"></output></label>
+        <label class="toggle-row"><div><b data-i18n="general.backend">输入监听方式</b><span data-i18n="general.backendDesc">自动模式按会话类型选择：X11 用全局钩子，Wayland 用边缘悬浮窗</span></div><select id="input-backend"><option value="auto" data-i18n="general.backendAuto">自动（推荐）</option><option value="uiohook" data-i18n="general.backendUiohook">全局钩子（仅 X11）</option><option value="edge-windows" data-i18n="general.backendEdge">边缘悬浮窗（全平台）</option></select></label>
+        <label class="toggle-row"><div><b data-i18n="general.close">点击关闭按钮时</b><span data-i18n="general.closeDesc">最小化到托盘后，动作与快捷键继续在后台运行</span></div><select id="close-action"><option value="ask" data-i18n="general.closeAsk">每次询问</option><option value="tray" data-i18n="general.closeTray">最小化到托盘</option><option value="quit" data-i18n="general.closeQuit">完全退出</option></select></label>
+        <label class="toggle-row"><div><b data-i18n="general.language">界面语言</b><span data-i18n="general.languageDesc">跟随系统会根据桌面区域设置选择语言</span></div><select id="language"><option value="auto" data-i18n="general.languageAuto">跟随系统</option><option value="zh-CN">简体中文</option><option value="en">English</option></select></label>
+        <label class="toggle-row"><div><b data-i18n="general.autostart">登录后自动启动</b><span data-i18n="general.autostartDesc">创建符合 freedesktop 规范的自启动项</span></div><input id="start-at-login" type="checkbox" class="toggle"></label>
       </div>
     </section>
 
     <section class="page" id="page-about">
-      <div class="intro"><span class="section-number">05 / DIAGNOSTICS</span><h2>关于与诊断</h2><p>检查当前桌面环境和功能运行状态。</p></div>
+      <div class="intro"><span class="section-number">05 / DIAGNOSTICS</span><h2 data-i18n="about.heading">关于与诊断</h2><p data-i18n="about.intro">检查当前桌面环境和功能运行状态。</p></div>
       <div class="diagnostics">
-        <div class="panel"><span>滚轮监听</span><b id="diag-hook">—</b></div>
-        <div class="panel"><span>监听后端</span><b id="diag-backend">—</b></div>
-        <div class="panel"><span>会话类型</span><b id="diag-session">—</b></div>
-        <div class="panel"><span>桌面环境</span><b id="diag-desktop">—</b></div>
-        <div class="panel"><span>Slipy 版本</span><b id="diag-version">—</b></div>
-        <div class="panel tools"><span>系统命令可用性</span><div id="diag-tools" class="tool-chips"></div></div>
+        <div class="panel"><span data-i18n="about.hook">滚轮监听</span><b id="diag-hook">—</b></div>
+        <div class="panel"><span data-i18n="about.backend">监听后端</span><b id="diag-backend">—</b></div>
+        <div class="panel"><span data-i18n="about.session">会话类型</span><b id="diag-session">—</b></div>
+        <div class="panel"><span data-i18n="about.desktop">桌面环境</span><b id="diag-desktop">—</b></div>
+        <div class="panel"><span data-i18n="about.version">Slipy 版本</span><b id="diag-version">—</b></div>
+        <div class="panel tools"><span data-i18n="about.tools">系统命令可用性</span><div id="diag-tools" class="tool-chips"></div></div>
       </div>
-      <div class="panel notice"><h3>Linux 兼容性</h3><p><b>X11：</b>通过全局输入钩子监听滚轮，动作使用 <code>wmctrl</code>/<code>xdotool</code>。<br><b>Wayland：</b>Slipy 在已配置的屏幕边缘放置透明悬浮条来接收滚轮事件；动作优先走桌面环境的原生接口——KDE 与 GNOME 使用 DBus，Hyprland 使用 <code>hyprctl</code>，Sway 使用 <code>swaymsg</code>，其余情况可安装 <code>ydotool</code>（需启用 <code>ydotoold</code> 服务）作为通用兜底。</p><p>媒体、音量和亮度动作分别需要 <code>playerctl</code>、<code>wpctl/pactl</code>、<code>brightnessctl</code>，与显示服务器无关。</p></div>
+      <div class="panel notice"><h3 data-i18n="about.noticeTitle">Linux 兼容性</h3><p data-i18n-html="about.noticeBodyHtml"><b>X11：</b>通过全局输入钩子监听滚轮，动作使用 <code>wmctrl</code>/<code>xdotool</code>。<br><b>Wayland：</b>Slipy 在已配置的屏幕边缘放置透明悬浮条来接收滚轮事件；动作优先走桌面环境的原生接口——KDE 与 GNOME 使用 DBus，Hyprland 使用 <code>hyprctl</code>，Sway 使用 <code>swaymsg</code>，其余情况可安装 <code>ydotool</code>（需启用 <code>ydotoold</code> 服务）作为通用兜底。</p><p data-i18n-html="about.noticeExtraHtml">媒体、音量和亮度动作分别需要 <code>playerctl</code>、<code>wpctl/pactl</code>、<code>brightnessctl</code>，与显示服务器无关。</p></div>
       <div class="destructive-actions">
-        <button id="quit-button" class="ghost">完全退出 Slipy</button>
-        <div><button id="uninstall-button" class="danger">卸载 Slipy 并删除全部数据</button><span id="uninstall-note"></span></div>
+        <button id="quit-button" class="ghost" data-i18n="about.quit">完全退出 Slipy</button>
+        <div><button id="uninstall-button" class="danger" data-i18n="about.uninstall">卸载 Slipy 并删除全部数据</button><span id="uninstall-note"></span></div>
       </div>
     </section>
   </main>
+  <script src="../shared/locales.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

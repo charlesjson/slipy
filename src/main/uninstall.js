@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const { t } = require('./i18n');
 
 const APP_ID = 'org.slipy.app';
 
@@ -83,7 +84,7 @@ function removeUserArtifacts(paths, home = os.homedir(), env = process.env) {
     const resolved = path.resolve(target);
     const safe = safeRoots.some((root) => resolved.startsWith(`${root}${path.sep}`));
     if (!safe) {
-      failures.push(`${resolved}: 路径不在用户目录内`);
+      failures.push(`${resolved}: ${t('error.pathOutsideHome')}`);
       continue;
     }
     try { fs.rmSync(resolved, { recursive: true, force: true }); }
@@ -98,13 +99,13 @@ function executeSystemUninstaller(installation) {
     const child = spawn('pkexec', ['/bin/bash', installation.helper, '--system', '--uninstall'], { stdio: 'ignore' });
     child.once('error', (error) => {
       if (error.code === 'ENOENT' && installation.scope === 'system') {
-        error.message = '系统缺少 pkexec，无法请求管理员权限。请在终端中使用 sudo 运行卸载脚本。';
+        error.message = t('error.noPkexec');
       }
       reject(error);
     });
     child.once('close', (code) => {
       if (code === 0) resolve();
-      else reject(new Error(code === 126 || code === 127 ? '管理员授权已取消。' : `卸载程序退出码为 ${code}`));
+      else reject(new Error(code === 126 || code === 127 ? t('error.authCancelled') : t('error.uninstallerExit', { code })));
     });
   });
 }

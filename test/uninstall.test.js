@@ -69,7 +69,7 @@ test('collects and removes XDG config, cache, state, logs and legacy paths safel
   const outside = path.join(os.tmpdir(), `slipy-outside-${process.pid}`);
   fs.mkdirSync(outside, { recursive: true });
   const failures = removeUserArtifacts([outside], home, env);
-  assert.match(failures[0], /不在用户目录/);
+  assert.match(failures[0], /outside the user directory/);
   assert.equal(fs.existsSync(outside), true);
   fs.rmSync(outside, { recursive: true });
 });
