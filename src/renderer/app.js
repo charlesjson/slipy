@@ -123,7 +123,7 @@ function renderGeneral() {
   $('#edge-thickness').value = draft.edgeThickness; $('#edge-output').textContent = `${draft.edgeThickness} px`;
   $('#corner-size').value = draft.cornerSize; $('#corner-output').textContent = `${draft.cornerSize} px`;
   $('#cooldown').value = draft.wheelCooldownMs; $('#cooldown-output').textContent = `${draft.wheelCooldownMs} ms`;
-  $('#close-to-tray').checked = draft.closeToTray; $('#start-at-login').checked = draft.startAtLogin;
+  $('#close-action').value = draft.closeAction || 'ask'; $('#start-at-login').checked = draft.startAtLogin;
   $('#input-backend').value = draft.inputBackend || 'auto';
 }
 
@@ -185,7 +185,7 @@ function bind() {
     $(`#${id}`).addEventListener('input', (event) => { draft[key] = Number(event.target.value); $(`#${output}`).textContent = `${event.target.value}${suffix}`; markDirty(); });
   }
   $('#input-backend').addEventListener('change', (event) => { draft.inputBackend = event.target.value; markDirty(); });
-  $('#close-to-tray').addEventListener('change', (event) => { draft.closeToTray = event.target.checked; markDirty(); });
+  $('#close-action').addEventListener('change', (event) => { draft.closeAction = event.target.value; markDirty(); });
   $('#start-at-login').addEventListener('change', (event) => { draft.startAtLogin = event.target.checked; markDirty(); });
   $('#save-button').addEventListener('click', save);
   $('#open-plugins').addEventListener('click', () => window.slipy.openPluginsDirectory());
@@ -203,7 +203,13 @@ function bind() {
       window.alert(error.message);
     }
   });
-  window.slipy.onState((next) => { state = next; renderStatus(); });
+  window.slipy.onState((next) => {
+    state = next;
+    // the close dialog can persist closeAction from the main process
+    draft.closeAction = state.settings.closeAction;
+    renderGeneral();
+    renderStatus();
+  });
 }
 
 window.slipy.getState().then((initial) => {

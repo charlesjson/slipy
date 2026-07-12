@@ -3,9 +3,9 @@
 const path = require('node:path');
 const {
   app, BrowserWindow, Menu, Tray, ipcMain, globalShortcut, screen,
-  nativeImage, Notification, shell
+  nativeImage, Notification, shell, dialog
 } = require('electron');
-const { SettingsStore } = require('./settings');
+const { SettingsStore, closeChoiceFromDialog } = require('./settings');
 const { ACTIONS } = require('./constants');
 const { PluginManager } = require('./plugins');
 const { ActionExecutor } = require('./actions');
@@ -94,15 +94,55 @@ function createWindow() {
     if (!process.argv.includes('--hidden')) mainWindow.show();
   });
   mainWindow.on('close', (event) => {
-    if (!quitting && store.get().closeToTray) {
-      event.preventDefault();
+    if (quitting) return;
+    const action = store.get().closeAction;
+    if (action === 'quit') {
+      quitting = true;
+      app.quit();
+      return;
+    }
+    event.preventDefault();
+    if (action === 'tray') mainWindow.hide();
+    else promptCloseAction();
+  });
+  mainWindow.on('closed', () => { mainWindow = null; });
+}
+
+let closePromptOpen = false;
+
+async function promptCloseAction() {
+  if (closePromptOpen) return;
+  closePromptOpen = true;
+  try {
+    const { response, checkboxChecked } = await dialog.showMessageBox(mainWindow, {
+      type: 'question',
+      title: '关闭 Slipy',
+      message: '关闭窗口时要做什么？',
+      detail: '最小化到托盘后，滚轮区域和全局快捷键会继续在后台运行。',
+      buttons: ['最小化到托盘', '完全退出', '取消'],
+      defaultId: 0,
+      cancelId: 2,
+      noLink: true,
+      checkboxLabel: '记住我的选择，不再询问',
+      checkboxChecked: true
+    });
+    const choice = closeChoiceFromDialog(response, checkboxChecked);
+    if (!choice.action) return;
+    if (choice.remember) {
+      const settings = store.get();
+      settings.closeAction = choice.action;
+      store.save(settings);
+      sendState();
+    }
+    if (choice.action === 'tray') {
       mainWindow.hide();
-    } else if (!quitting) {
+    } else {
       quitting = true;
       app.quit();
     }
-  });
-  mainWindow.on('closed', () => { mainWindow = null; });
+  } finally {
+    closePromptOpen = false;
+  }
 }
 
 function showWindow() {

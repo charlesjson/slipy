@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { normalizeSettings, SettingsStore } = require('../src/main/settings');
+const { normalizeSettings, SettingsStore, closeChoiceFromDialog } = require('../src/main/settings');
 
 test('normalizes limits, actions, shortcuts and plugin configuration', () => {
   const value = normalizeSettings({
@@ -30,6 +30,23 @@ test('normalizes limits, actions, shortcuts and plugin configuration', () => {
   assert.equal(value.shortcuts.length, 2);
   assert.equal(value.shortcuts[1].pluginAction, 'org.test:run');
   assert.equal(value.plugins['org.test'], true);
+});
+
+test('close action defaults to ask, validates values and migrates closeToTray', () => {
+  assert.equal(normalizeSettings({}).closeAction, 'ask');
+  assert.equal(normalizeSettings({ closeAction: 'quit' }).closeAction, 'quit');
+  assert.equal(normalizeSettings({ closeAction: 'sideways' }).closeAction, 'ask');
+  // files written before closeAction existed already carried a decision
+  assert.equal(normalizeSettings({ closeToTray: true }).closeAction, 'tray');
+  assert.equal(normalizeSettings({ closeToTray: false }).closeAction, 'quit');
+});
+
+test('close dialog result maps buttons to actions and remembers only when asked', () => {
+  assert.deepEqual(closeChoiceFromDialog(0, true), { action: 'tray', remember: true });
+  assert.deepEqual(closeChoiceFromDialog(0, false), { action: 'tray', remember: false });
+  assert.deepEqual(closeChoiceFromDialog(1, true), { action: 'quit', remember: true });
+  // cancel never persists and never closes
+  assert.deepEqual(closeChoiceFromDialog(2, true), { action: null, remember: false });
 });
 
 test('settings store persists atomically and reloads', () => {

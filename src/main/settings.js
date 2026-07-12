@@ -12,7 +12,7 @@ const DEFAULT_SETTINGS = Object.freeze({
   wheelCooldownMs: 220,
   inputBackend: 'auto',
   theme: 'dark',
-  closeToTray: true,
+  closeAction: 'ask',
   startAtLogin: false,
   zones: Object.fromEntries(ZONES.map((zone) => [zone, { up: 'none', down: 'none' }])),
   shortcuts: [
@@ -38,7 +38,12 @@ function normalizeSettings(input = {}) {
   output.wheelCooldownMs = clamp(input.wheelCooldownMs, 50, 2000, output.wheelCooldownMs);
   output.inputBackend = ['auto', 'uiohook', 'edge-windows'].includes(input.inputBackend) ? input.inputBackend : 'auto';
   output.theme = input.theme === 'light' ? 'light' : 'dark';
-  output.closeToTray = input.closeToTray !== false;
+  if (['ask', 'tray', 'quit'].includes(input.closeAction)) {
+    output.closeAction = input.closeAction;
+  } else if (typeof input.closeToTray === 'boolean') {
+    // Settings written before closeAction existed already made the choice.
+    output.closeAction = input.closeToTray ? 'tray' : 'quit';
+  }
   output.startAtLogin = input.startAtLogin === true;
 
   for (const zone of ZONES) {
@@ -78,6 +83,14 @@ function clamp(value, min, max, fallback) {
   return Number.isFinite(number) ? Math.min(max, Math.max(min, Math.round(number))) : fallback;
 }
 
+// Interprets the close-prompt dialog result. Buttons are ordered
+// [minimize-to-tray, quit, cancel]; the checkbox persists the choice.
+function closeChoiceFromDialog(response, checkboxChecked) {
+  if (response === 0) return { action: 'tray', remember: Boolean(checkboxChecked) };
+  if (response === 1) return { action: 'quit', remember: Boolean(checkboxChecked) };
+  return { action: null, remember: false };
+}
+
 class SettingsStore {
   constructor(file) {
     this.file = file;
@@ -105,4 +118,4 @@ class SettingsStore {
   }
 }
 
-module.exports = { DEFAULT_SETTINGS, SettingsStore, normalizeSettings };
+module.exports = { DEFAULT_SETTINGS, SettingsStore, normalizeSettings, closeChoiceFromDialog };
