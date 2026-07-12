@@ -12,6 +12,7 @@ const { ActionExecutor } = require('./actions');
 const { Autostart } = require('./autostart');
 const { HotkeyManager } = require('./hotkeys');
 const { WheelService } = require('./wheel-service');
+const { executeSystemUninstaller, installationFor, startCleanupWorker, userArtifactPaths } = require('./uninstall');
 
 let mainWindow;
 let tray;
@@ -35,6 +36,7 @@ function sendState() {
 }
 
 function getBootstrap() {
+  const installation = installationFor(process.execPath, process.env.APPIMAGE, { packaged: app.isPackaged, appDir: process.env.APPDIR });
   return {
     settings: store.get(),
     actions: Object.entries(ACTIONS).filter(([, value]) => !value.internal).map(([id, value]) => ({ id, name: value.label })),
@@ -45,7 +47,9 @@ function getBootstrap() {
       sessionType: process.env.XDG_SESSION_TYPE || 'unknown',
       desktop: process.env.XDG_CURRENT_DESKTOP || 'unknown',
       pluginsDirectory: plugins.directory,
-      version: app.getVersion()
+      version: app.getVersion(),
+      uninstallAvailable: installation.available,
+      installScope: installation.scope
     }
   };
 }
@@ -136,6 +140,27 @@ function registerIpc() {
   ipcMain.handle('plugins:open-directory', () => shell.openPath(plugins.directory));
   ipcMain.handle('window:hide', () => mainWindow?.hide());
   ipcMain.handle('app:quit', () => { quitting = true; app.quit(); });
+  ipcMain.handle('app:uninstall', async () => {
+    const installation = installationFor(process.execPath, process.env.APPIMAGE, { packaged: app.isPackaged, appDir: process.env.APPDIR });
+    if (!installation.available) throw new Error('当前是源码开发模式，没有可卸载的安装包。');
+    const electronPaths = ['userData', 'sessionData', 'logs', 'crashDumps'].flatMap((name) => {
+      try { return [app.getPath(name)]; } catch { return []; }
+    });
+    const home = app.getPath('home');
+    const paths = userArtifactPaths(process.env, home, electronPaths);
+    const safeRoots = [home, process.env.XDG_CONFIG_HOME, process.env.XDG_CACHE_HOME, process.env.XDG_STATE_HOME, process.env.XDG_DATA_HOME].filter(Boolean);
+    const worker = startCleanupWorker({ installation, paths, safeRoots });
+    try {
+      await executeSystemUninstaller(installation);
+      worker.arm();
+    } catch (error) {
+      worker.cancel();
+      throw error;
+    }
+    quitting = true;
+    setImmediate(() => app.quit());
+    return { ok: true, warnings: [] };
+  });
 }
 
 async function start() {

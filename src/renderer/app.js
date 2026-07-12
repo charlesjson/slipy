@@ -125,6 +125,11 @@ function renderStatus() {
   $('#diag-session').textContent = state.environment.sessionType;
   $('#diag-desktop').textContent = state.environment.desktop;
   $('#diag-version').textContent = state.environment.version;
+  const uninstall = $('#uninstall-button');
+  uninstall.disabled = !state.environment.uninstallAvailable;
+  $('#uninstall-note').textContent = state.environment.uninstallAvailable
+    ? `将删除${state.environment.installScope === 'system' ? '系统级程序及当前用户' : state.environment.installScope === 'appimage' ? 'AppImage 及当前用户' : '程序及当前用户'}的配置、插件、缓存和日志。`
+    : '源码开发模式没有安装内容。';
 }
 
 function renderAll() { renderZone(); renderShortcuts(); renderPlugins(); renderGeneral(); renderStatus(); }
@@ -162,6 +167,18 @@ function bind() {
   $('#open-plugins').addEventListener('click', () => window.slipy.openPluginsDirectory());
   $('#hide-button').addEventListener('click', () => window.slipy.hide());
   $('#quit-button').addEventListener('click', () => window.slipy.quit());
+  $('#uninstall-button').addEventListener('click', async () => {
+    if (!window.confirm('确定完整卸载 Slipy？程序、设置、插件、缓存、日志和自启动项都会被永久删除。')) return;
+    const button = $('#uninstall-button');
+    button.disabled = true; button.textContent = '正在卸载…';
+    try {
+      const result = await window.slipy.uninstall();
+      if (result.warnings?.length) window.alert(result.warnings.join('\n'));
+    } catch (error) {
+      button.disabled = false; button.textContent = '卸载 Slipy 并删除全部数据';
+      window.alert(error.message);
+    }
+  });
   window.slipy.onState((next) => { state = next; renderStatus(); });
 }
 

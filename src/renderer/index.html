@@ -88,7 +88,10 @@
         <div class="panel"><span>Slipy 版本</span><b id="diag-version">—</b></div>
       </div>
       <div class="panel notice"><h3>Linux 兼容性</h3><p><b>X11：</b>完整支持全局坐标和滚轮监听。<br><b>Wayland：</b>出于合成器的安全隔离，全局输入监听可能不可用。请使用桌面登录界面中的 X11 会话运行 Slipy。</p><p>虚拟桌面优先使用 <code>wmctrl</code>，窗口动作使用 <code>xdotool</code>；媒体、音量和亮度动作分别需要 <code>playerctl</code>、<code>wpctl/pactl</code>、<code>brightnessctl</code>。</p></div>
-      <button id="quit-button" class="danger">完全退出 Slipy</button>
+      <div class="destructive-actions">
+        <button id="quit-button" class="ghost">完全退出 Slipy</button>
+        <div><button id="uninstall-button" class="danger">卸载 Slipy 并删除全部数据</button><span id="uninstall-note"></span></div>
+      </div>
     </section>
   </main>
   <script src="app.js"></script>

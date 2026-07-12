@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('slipy', Object.freeze({
   openPluginsDirectory: () => ipcRenderer.invoke('plugins:open-directory'),
   hide: () => ipcRenderer.invoke('window:hide'),
   quit: () => ipcRenderer.invoke('app:quit'),
+  uninstall: () => ipcRenderer.invoke('app:uninstall'),
   onState: (callback) => {
     const listener = (_event, state) => callback(state);
     ipcRenderer.on('runtime:state', listener);

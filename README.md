@@ -11,6 +11,7 @@ Slipy 是一个 Linux 桌面效率工具：让鼠标滚轮在屏幕四角和四�
 - 最小化到系统托盘，通过 freedesktop `.desktop` 文件登录自启动。
 - Plugin API v1，可由本地 CommonJS 插件注册新动作。
 - 多显示器区域识别、可调命中宽度及滚轮防抖。
+- “关于与诊断”页面内置完整卸载，删除程序、设置、插件、缓存、日志、崩溃转储和自启动项。
 
 ## 环境要求
 
@@ -23,6 +24,24 @@ Debian/Ubuntu 示例：
 
 ```bash
 sudo apt install wmctrl xdotool playerctl brightnessctl
+```
+
+Fedora/RHEL 系：
+
+```bash
+sudo dnf install wmctrl xdotool playerctl brightnessctl
+```
+
+Arch Linux/Manjaro：
+
+```bash
+sudo pacman -S wmctrl xdotool playerctl brightnessctl
+```
+
+openSUSE：
+
+```bash
+sudo zypper install wmctrl xdotool playerctl brightnessctl
 ```
 
 Wayland 默认禁止普通应用读取全局指针事件，滚轮区域功能可能不可用。可以从显示管理器选择 X11/Xorg 会话；托盘、设置页及桌面环境允许的全局快捷键仍可使用。
@@ -70,18 +89,33 @@ dist/Slipy-<版本>-linux-<架构>.tar.gz
 sudo ./Slipy-0.1.0-linux-x64-installer.run --system
 ```
 
-两种模式都会安装桌面菜单、512×512 图标和命令行入口。安装完成后可使用安装目录中的 `uninstall.sh --uninstall` 卸载，例如：
+离线 `.run` 安装器遵循 XDG 和 freedesktop 目录规范，不调用特定发行版的包管理器，兼容 Debian/Ubuntu/Linux Mint、Fedora/RHEL、Arch/Manjaro、openSUSE 等主流桌面发行版，以及 GNOME、KDE Plasma、XFCE、Cinnamon 和 MATE。系统级图形化卸载通过通用的 PolicyKit `pkexec` 请求管理员权限。
+
+两种模式都会安装桌面菜单、512×512 图标和命令行入口。推荐在应用“关于与诊断”页面点击“卸载 Slipy 并删除全部数据”：独立卸载助手会等待 Electron 及其子进程退出，再删除程序和用户数据，避免退出阶段重新生成缓存。
+
+用户级安装也可直接运行：
 
 ```bash
 ~/.local/share/slipy/uninstall.sh --user --uninstall
+```
+
+系统级命令行卸载采用权限分离：先以桌面用户清理个人数据，再以管理员权限删除系统程序。不要用 root 权限遍历用户目录。
+
+```bash
+/opt/slipy/uninstall.sh --clean-user-data
 sudo /opt/slipy/uninstall.sh --system --uninstall
 ```
 
-单独构建 deb（需要构建机提供 `libcrypt.so.1`）：
+完整卸载会删除以下内容：
 
-```bash
-npm run dist:deb
-```
+- Electron/Slipy 程序目录和命令行链接；
+- desktop 菜单、应用图标和登录自启动项；
+- XDG 配置目录中的设置与插件；
+- Chromium/Electron GPUCache、Cache、崩溃转储；
+- XDG state 下的运行状态和日志；
+- 旧版本使用的 `Slipy` 大写配置、缓存和数据目录。
+
+从 AppImage 运行时，内置卸载会删除当前 AppImage 文件并清理同样的用户数据；系统级安装会通过 PolicyKit 显示桌面管理员授权对话框。
 
 所有产物位于 `dist/`。
 

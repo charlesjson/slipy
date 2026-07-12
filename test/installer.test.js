@@ -40,10 +40,32 @@ test('offline installer installs and uninstalls a user payload in XDG paths', as
   assert.match(fs.readFileSync(desktop, 'utf8'), new RegExp(`Exec="${app}/slipy"`));
   assert.equal(fs.existsSync(path.join(app, 'uninstall.sh')), true);
 
+  const cache = path.join(root, 'cache');
+  const state = path.join(root, 'state');
+  env.XDG_CACHE_HOME = cache;
+  env.XDG_STATE_HOME = state;
+  for (const artifact of [
+    path.join(env.XDG_CONFIG_HOME, 'slipy', 'settings.json'),
+    path.join(env.XDG_CONFIG_HOME, 'Slipy', 'plugins', 'test.js'),
+    path.join(cache, 'slipy', 'GPUCache', 'data'),
+    path.join(cache, 'Slipy', 'Cache', 'data'),
+    path.join(state, 'slipy', 'logs', 'main.log'),
+    path.join(state, 'Slipy', 'crash', 'dump')
+  ]) {
+    fs.mkdirSync(path.dirname(artifact), { recursive: true });
+    fs.writeFileSync(artifact, 'artifact');
+  }
+
   await execFileAsync('bash', [path.join(app, 'uninstall.sh'), '--user', '--uninstall'], { env });
   assert.equal(fs.existsSync(app), false);
   assert.equal(fs.existsSync(binary), false);
   assert.equal(fs.existsSync(desktop), false);
+  assert.equal(fs.existsSync(path.join(env.XDG_CONFIG_HOME, 'slipy')), false);
+  assert.equal(fs.existsSync(path.join(env.XDG_CONFIG_HOME, 'Slipy')), false);
+  assert.equal(fs.existsSync(path.join(cache, 'slipy')), false);
+  assert.equal(fs.existsSync(path.join(cache, 'Slipy')), false);
+  assert.equal(fs.existsSync(path.join(state, 'slipy')), false);
+  assert.equal(fs.existsSync(path.join(state, 'Slipy')), false);
 
   fs.mkdirSync(app, { recursive: true });
   fs.writeFileSync(path.join(app, 'keep-me'), 'unmanaged');

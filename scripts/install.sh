@@ -15,7 +15,8 @@ Slipy 离线安装程序
 用法：./install.sh [选项]
   --user        安装到当前用户目录（默认：普通用户）
   --system      安装到 /opt 和 /usr（默认：root 用户）
-  --uninstall   卸载程序，保留用户配置和插件
+  --uninstall   完整卸载程序，并删除配置、插件、缓存和日志
+  --clean-user-data  仅清理当前用户数据（必须以桌面用户运行）
   --no-launch   安装完成后不启动 Slipy
   -h, --help    显示帮助
 EOF
@@ -26,6 +27,7 @@ while (($#)); do
     --user) MODE="user" ;;
     --system) MODE="system" ;;
     --uninstall) ACTION="uninstall" ;;
+    --clean-user-data) ACTION="clean-user-data" ;;
     --no-launch) LAUNCH=0 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "未知参数：$1" >&2; usage >&2; exit 2 ;;
@@ -63,6 +65,37 @@ is_managed_install() {
   [[ -f "${APP_DIR}/.slipy-install" ]] && grep -qxF "$APP_ID" "${APP_DIR}/.slipy-install"
 }
 
+purge_user_data() {
+  local target_home="$HOME"
+  if [[ -z "$target_home" || "$target_home" == "/" || "$target_home" != /* ]]; then
+    echo "无法确定安全的用户主目录，拒绝清理用户数据。" >&2
+    return 1
+  fi
+  local config="${XDG_CONFIG_HOME:-${target_home}/.config}"
+  local cache="${XDG_CACHE_HOME:-${target_home}/.cache}"
+  local state="${XDG_STATE_HOME:-${target_home}/.local/state}"
+  local data="${XDG_DATA_HOME:-${target_home}/.local/share}"
+  rm -rf -- \
+    "${config}/slipy" "${config}/Slipy" \
+    "${config}/${APP_ID}" \
+    "${cache}/slipy" "${cache}/Slipy" \
+    "${cache}/${APP_ID}" \
+    "${state}/slipy" "${state}/Slipy" \
+    "${state}/${APP_ID}" \
+    "${data}/Slipy" "${data}/${APP_ID}"
+  rm -f -- "${config}/autostart/slipy.desktop"
+}
+
+if [[ "$ACTION" == "clean-user-data" ]]; then
+  if [[ "$(id -u)" -eq 0 ]]; then
+    echo "请以需要清理数据的桌面用户运行 --clean-user-data，不要使用 sudo。" >&2
+    exit 1
+  fi
+  purge_user_data
+  echo "Slipy 当前用户的配置、插件、缓存和日志已删除。"
+  exit 0
+fi
+
 if [[ "$ACTION" == "uninstall" ]]; then
   if ! is_managed_install; then
     echo "拒绝卸载：${APP_DIR} 不是由 Slipy 安装程序管理的目录。" >&2
@@ -71,13 +104,17 @@ if [[ "$ACTION" == "uninstall" ]]; then
   [[ -L "$BIN_LINK" && "$(readlink -- "$BIN_LINK")" == "${APP_DIR}/slipy" ]] && rm -f -- "$BIN_LINK"
   [[ -f "$DESKTOP_FILE" ]] && grep -q '^X-Slipy-Managed=true$' "$DESKTOP_FILE" && rm -f -- "$DESKTOP_FILE"
   rm -f -- "$ICON_FILE"
-  if [[ "$MODE" == "user" ]]; then
-    autostart="${XDG_CONFIG_HOME:-${HOME}/.config}/autostart/slipy.desktop"
-    [[ -f "$autostart" ]] && grep -qF "${APP_DIR}/slipy" "$autostart" && rm -f -- "$autostart"
-  fi
+  # User data is removed before the helper itself, so a failed cleanup can be retried.
+  # A privileged system helper must never traverse user-controlled home symlinks;
+  # the unprivileged post-exit worker performs that cleanup instead.
+  if [[ "$MODE" == "user" ]]; then purge_user_data; fi
   rm -rf -- "$APP_DIR"
   refresh_desktop
-  echo "Slipy 已卸载。用户配置和插件数据已保留。"
+  if [[ "$MODE" == "user" ]]; then
+    echo "Slipy 已完整卸载，配置、插件、缓存和日志均已删除。"
+  else
+    echo "Slipy 系统程序已卸载。内置图形卸载会自动清理桌面用户数据；命令行模式请确认已先运行 --clean-user-data。"
+  fi
   exit 0
 fi
 

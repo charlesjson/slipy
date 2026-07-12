@@ -14,9 +14,8 @@
     "start": "electron .",
     "dev": "electron . --dev",
     "test": "node --test",
-    "check": "node --check src/main/index.js && node --check src/main/settings.js && node --check src/main/plugins.js && node --check src/preload.js && node --check src/renderer/app.js",
+    "check": "node --check src/main/index.js && node --check src/main/settings.js && node --check src/main/plugins.js && node --check src/main/uninstall.js && node --check src/main/uninstall-worker.js && node --check src/preload.js && node --check src/renderer/app.js",
     "dist": "electron-builder --linux AppImage",
-    "dist:deb": "electron-builder --linux deb",
     "dist:installer": "bash scripts/build-installer.sh"
   },
   "dependencies": {
@@ -41,10 +40,7 @@
     "linux": {
       "syncDesktopName": true,
       "maintainer": "Slipy Contributors <maintainers@slipy.app>",
-      "target": [
-        "AppImage",
-        "deb"
-      ],
+      "target": ["AppImage"],
       "category": "Utility",
       "icon": "assets/icon.png"
     }
