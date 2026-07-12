@@ -181,8 +181,8 @@ function configureAutostart() {
   });
 }
 
-function applyRuntime(settings) {
-  plugins.load(settings.plugins);
+async function applyRuntime(settings) {
+  await plugins.load(settings.plugins);
   runtimeStatus.shortcutResults = hotkeys.apply(settings.shortcuts);
   sendState();
 }
@@ -246,7 +246,7 @@ function probeTools() {
 
 function registerIpc() {
   ipcMain.handle('settings:get', () => getBootstrap());
-  ipcMain.handle('settings:save', (_event, value) => {
+  ipcMain.handle('settings:save', async (_event, value) => {
     const settings = store.save(value);
     try {
       autostart.set(settings.startAtLogin);
@@ -257,7 +257,7 @@ function registerIpc() {
     }
     i18n.setLanguage(i18n.resolveLanguage(store.get().language, app.getLocale()));
     applyTrayLabels();
-    applyRuntime(store.get());
+    await applyRuntime(store.get());
     refreshWheel();
     return getBootstrap();
   });
@@ -311,7 +311,7 @@ async function start() {
   createWindow();
   createTray();
   registerIpc();
-  applyRuntime(store.get());
+  await applyRuntime(store.get());
 
   startWheel();
   probeTools().catch(() => { /* diagnostics only */ });
