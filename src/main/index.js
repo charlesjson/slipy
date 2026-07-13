@@ -83,6 +83,7 @@ function getBootstrap() {
       tools: toolAvailability,
       pluginsDirectory: plugins.directory,
       version: app.getVersion(),
+      packaged: app.isPackaged,
       uninstallAvailable: installation.available,
       installScope: installation.scope
     }

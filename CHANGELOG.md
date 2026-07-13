@@ -33,6 +33,10 @@ All notable changes to Slipy are documented in this file. The format follows
   screen (`wpctl`/`pactl`, `loginctl`/`xdg-screensaver`).
 - Errors while saving settings or testing actions are now shown in the UI
   instead of being silently dropped.
+- Native package targets: `npm run dist` now also builds `.deb` (with the
+  optional action tools as Recommends), `.rpm` and Arch `.pkg.tar.zst`
+  alongside the AppImage. Package-manager installs see a hint to uninstall
+  through the package manager instead of the in-app uninstaller.
 
 ## [0.1.0] - 2026-07-12
 

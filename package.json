@@ -15,7 +15,7 @@
     "dev": "electron . --dev",
     "test": "node --test",
     "check": "node --check src/main/index.js && node --check src/main/settings.js && node --check src/main/plugins.js && node --check src/main/uninstall.js && node --check src/main/uninstall-worker.js && node --check src/main/desktop-env.js && node --check src/main/desktop-apps.js && node --check src/main/action-backends.js && node --check src/main/actions.js && node --check src/main/edge-layout.js && node --check src/main/wheel-dispatch.js && node --check src/main/edge-wheel-service.js && node --check src/main/wheel-service.js && node --check src/main/i18n.js && node --check src/shared/locales.js && node --check src/shared/accelerator.js && node --check src/preload.js && node --check src/edge-preload.js && node --check src/renderer/app.js",
-    "dist": "electron-builder --linux AppImage",
+    "dist": "electron-builder --linux",
     "dist:installer": "bash scripts/build-installer.sh"
   },
   "dependencies": {
@@ -40,9 +40,12 @@
     "linux": {
       "syncDesktopName": true,
       "maintainer": "Slipy Contributors <maintainers@slipy.app>",
-      "target": ["AppImage"],
+      "target": ["AppImage", "deb", "rpm", "pacman"],
       "category": "Utility",
       "icon": "assets/icon.png"
+    },
+    "deb": {
+      "recommends": ["wmctrl", "xdotool", "playerctl", "brightnessctl", "ydotool"]
     }
   },
   "allowScripts": {

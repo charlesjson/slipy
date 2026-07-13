@@ -280,9 +280,11 @@ function renderStatus() {
   uninstall.disabled = !state.environment.uninstallAvailable;
   const scopeKey = state.environment.installScope === 'system' ? 'uninstall.scopeSystem'
     : state.environment.installScope === 'appimage' ? 'uninstall.scopeAppimage' : 'uninstall.scopeUser';
+  // Packaged but unrecognized layout means a distribution package (deb/rpm/
+  // pacman) — those are removed through the system package manager.
   $('#uninstall-note').textContent = state.environment.uninstallAvailable
     ? t('uninstall.note', { target: t(scopeKey) })
-    : t('uninstall.noteNone');
+    : t(state.environment.packaged ? 'uninstall.notePackage' : 'uninstall.noteNone');
 }
 
 function renderAll() { applyI18n(); applyTheme(draft.theme); renderZone(); renderShortcuts(); renderPlugins(); renderGeneral(); renderStatus(); updatePageTitle(); }

@@ -159,6 +159,7 @@
     'uninstall.scopeAppimage': 'AppImage 及当前用户',
     'uninstall.scopeUser': '程序及当前用户',
     'uninstall.noteNone': '源码开发模式没有安装内容。',
+    'uninstall.notePackage': '通过系统包管理器安装，请使用包管理器卸载（例如 apt remove slipy）。',
 
     'action.none': '无操作',
     'action.workspace-prev': '上一个虚拟桌面',
@@ -375,6 +376,7 @@
     'uninstall.scopeAppimage': 'the AppImage and this user’s',
     'uninstall.scopeUser': 'the program and this user’s',
     'uninstall.noteNone': 'Nothing is installed in source development mode.',
+    'uninstall.notePackage': 'Installed through the system package manager — remove it there (e.g. apt remove slipy).',
 
     'action.none': 'Do nothing',
     'action.workspace-prev': 'Previous virtual desktop',
