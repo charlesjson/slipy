@@ -197,7 +197,7 @@ select:focus, input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px v
 .callout b { color: var(--text); }
 
 .stack { display: grid; gap: 10px; }
-.shortcut { display: grid; grid-template-columns: 42px minmax(180px, .8fr) minmax(220px, 1fr) 34px; align-items: center; gap: 12px; padding: 14px; box-shadow: none; }
+.shortcut { display: grid; grid-template-columns: 42px minmax(180px, .8fr) 34px minmax(220px, 1fr) 34px; align-items: center; gap: 12px; padding: 14px; box-shadow: none; }
 .shortcut .enabled { width: 17px; height: 17px; accent-color: var(--accent); }
 .shortcut input, .shortcut select { margin: 0; }
 .icon-button { width: 32px; height: 32px; border-radius: 6px; color: var(--faint); background: transparent; font-size: 20px; }
@@ -260,3 +260,23 @@ pre { overflow: auto; padding: 14px; color: var(--text); border: 1px solid var(-
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }
+
+/* pause state + roadmap additions */
+.status-dot.paused i { background: var(--faint); box-shadow: 0 0 0 4px rgba(110, 105, 95, .15); }
+.test-buttons { display: flex; gap: 8px; }
+.test-result { margin: 0 0 14px; min-height: 15px; color: var(--muted); font-size: 11px; }
+.test-result.ok { color: var(--positive); }
+.test-result.error { color: var(--danger); }
+.icon-button.record { font-size: 15px; border: 1px solid var(--border); }
+.icon-button.record:hover { color: var(--accent); background: var(--accent-soft); }
+.icon-button.record.recording { color: var(--accent); background: var(--accent-soft); border-color: var(--accent); }
+.config-row { flex-wrap: wrap; }
+.config-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.config-buttons button { padding: 8px 12px; font-size: 11px; }
+.diag-actions { margin-top: 18px; }
+.diag-actions button:disabled { opacity: .5; cursor: default; }
+
+/* application launch */
+input[type="text"][hidden] { display: none; }
+.command-input { font-family: ui-monospace, "JetBrains Mono", monospace; font-size: 11px; }
+.shortcut .command-input { grid-column: 2 / -1; }

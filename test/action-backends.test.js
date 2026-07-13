@@ -53,3 +53,9 @@ test('volume actions are desktop-agnostic and unknown actions return null', () =
   assert.equal(actionCandidates('volume-up', kdeWayland)[0].command, 'wpctl');
   assert.equal(actionCandidates('nope', kdeWayland), null);
 });
+
+test('mute and lock actions prefer wpctl and loginctl everywhere', () => {
+  assert.equal(actionCandidates('audio-mute', x11)[0].command, 'wpctl');
+  assert.equal(actionCandidates('mic-mute', kdeWayland)[0].args.includes('@DEFAULT_AUDIO_SOURCE@'), true);
+  assert.equal(actionCandidates('lock-screen', gnomeWayland)[0].command, 'loginctl');
+});

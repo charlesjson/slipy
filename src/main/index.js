@@ -1,11 +1,12 @@
 'use strict';
 
+const fs = require('node:fs');
 const path = require('node:path');
 const {
   app, BrowserWindow, Menu, Tray, ipcMain, globalShortcut, screen,
   nativeImage, Notification, shell, dialog
 } = require('electron');
-const { SettingsStore, closeChoiceFromDialog } = require('./settings');
+const { SettingsStore, DEFAULT_SETTINGS, migrateSettings, closeChoiceFromDialog } = require('./settings');
 const { ACTIONS } = require('./constants');
 const { PluginManager } = require('./plugins');
 const { ActionExecutor } = require('./actions');
@@ -14,6 +15,7 @@ const { HotkeyManager } = require('./hotkeys');
 const { WheelService } = require('./wheel-service');
 const { EdgeWheelService } = require('./edge-wheel-service');
 const { detectEnvironment } = require('./desktop-env');
+const { applicationDirs, listApplications } = require('./desktop-apps');
 const i18n = require('./i18n');
 const { t } = i18n;
 const { executeSystemUninstaller, installationFor, startCleanupWorker, userArtifactPaths } = require('./uninstall');
@@ -27,9 +29,21 @@ let autostart;
 let hotkeys;
 let wheel;
 let quitting = false;
-let runtimeStatus = { wheelHook: 'starting', wheelBackend: null, error: null, shortcutResults: [] };
+let paused = false;
+let runtimeStatus = { wheelHook: 'starting', wheelBackend: null, error: null, shortcutResults: [], paused: false };
 let toolAvailability = {};
+let appList = [];
 const environment = detectEnvironment(process.env);
+
+// Launchable .desktop applications for the action pickers. Rescanned on
+// settings saves so display names follow the interface language.
+function scanApps() {
+  try {
+    appList = listApplications(applicationDirs(process.env), i18n.getLanguage());
+  } catch {
+    appList = [];
+  }
+}
 
 app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal');
 // Edge overlay strips need absolute screen placement, which xdg-shell denies
@@ -59,6 +73,7 @@ function getBootstrap() {
     actions: Object.entries(ACTIONS).filter(([, value]) => !value.internal).map(([id]) => ({ id, name: t(`action.${id}`) })),
     pluginActions: plugins.publicActions(),
     plugins: plugins.publicPlugins(),
+    apps: appList,
     runtime: runtimeStatus,
     environment: {
       language: i18n.getLanguage(),
@@ -156,13 +171,35 @@ function showWindow() {
 
 function applyTrayLabels() {
   if (!tray) return;
-  tray.setToolTip(t('tray.tooltip'));
+  tray.setToolTip(paused ? t('tray.tooltipPaused') : t('tray.tooltip'));
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: t('tray.open'), click: showWindow },
     { label: t('tray.hide'), click: () => mainWindow?.hide() },
     { type: 'separator' },
+    { label: paused ? t('tray.resume') : t('tray.pause'), click: () => setPaused(!paused) },
+    { type: 'separator' },
     { label: t('tray.quit'), click: () => { quitting = true; app.quit(); } }
   ]));
+}
+
+// Tears down every input surface while paused: edge strips release their
+// screen pixels (important for games and remote desktops on Wayland) and
+// global shortcuts are unregistered, not merely ignored.
+function setPaused(next) {
+  if (paused === next) return;
+  paused = next;
+  runtimeStatus.paused = next;
+  if (next) {
+    wheel?.stop();
+    wheel = null;
+    hotkeys.clear();
+    runtimeStatus = { ...runtimeStatus, wheelHook: 'paused', wheelBackend: null, shortcutResults: [] };
+  } else {
+    runtimeStatus.shortcutResults = hotkeys.apply(store.get().shortcuts);
+    startWheel();
+  }
+  applyTrayLabels();
+  sendState();
 }
 
 function createTray() {
@@ -183,7 +220,7 @@ function configureAutostart() {
 
 async function applyRuntime(settings) {
   await plugins.load(settings.plugins);
-  runtimeStatus.shortcutResults = hotkeys.apply(settings.shortcuts);
+  if (!paused) runtimeStatus.shortcutResults = hotkeys.apply(settings.shortcuts);
   sendState();
 }
 
@@ -207,6 +244,7 @@ function wheelBackendOrder() {
 }
 
 function startWheel() {
+  if (paused) return;
   for (const kind of wheelBackendOrder()) {
     const service = createWheelBackend(kind);
     try {
@@ -226,6 +264,7 @@ function startWheel() {
 }
 
 function refreshWheel() {
+  if (paused) return;
   const order = wheelBackendOrder();
   if (wheel && order.includes(wheel.kind)) {
     wheel.applySettings();
@@ -244,24 +283,73 @@ function probeTools() {
   }))).then((entries) => { toolAvailability = Object.fromEntries(entries); sendState(); });
 }
 
+// Single pipeline for every settings write (save, import, reset), so side
+// effects — autostart, language, tray, plugins, shortcuts, edge strips —
+// always stay in sync with the stored value.
+async function applySettings(value) {
+  const settings = store.save(value);
+  try {
+    autostart.set(settings.startAtLogin);
+  } catch (error) {
+    settings.startAtLogin = false;
+    store.save(settings);
+    runtimeStatus.error = t('error.autostartSet', { message: error.message });
+  }
+  i18n.setLanguage(i18n.resolveLanguage(store.get().language, app.getLocale()));
+  scanApps();
+  applyTrayLabels();
+  await applyRuntime(store.get());
+  refreshWheel();
+  return getBootstrap();
+}
+
 function registerIpc() {
   ipcMain.handle('settings:get', () => getBootstrap());
-  ipcMain.handle('settings:save', async (_event, value) => {
-    const settings = store.save(value);
+  ipcMain.handle('settings:save', (_event, value) => applySettings(value));
+  ipcMain.handle('settings:export', async () => {
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      title: t('config.exportTitle'),
+      defaultPath: path.join(app.getPath('documents'), 'slipy-settings.json'),
+      filters: [{ name: 'JSON', extensions: ['json'] }]
+    });
+    if (canceled || !filePath) return { canceled: true };
+    fs.writeFileSync(filePath, `${JSON.stringify(store.get(), null, 2)}\n`);
+    return { canceled: false, path: filePath };
+  });
+  ipcMain.handle('settings:import', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+      title: t('config.importTitle'),
+      properties: ['openFile'],
+      filters: [{ name: 'JSON', extensions: ['json'] }]
+    });
+    if (canceled || !filePaths.length) return { canceled: true };
+    let parsed;
     try {
-      autostart.set(settings.startAtLogin);
-    } catch (error) {
-      settings.startAtLogin = false;
-      store.save(settings);
-      runtimeStatus.error = t('error.autostartSet', { message: error.message });
+      parsed = JSON.parse(fs.readFileSync(filePaths[0], 'utf8'));
+    } catch {
+      throw new Error(t('error.importParse'));
     }
-    i18n.setLanguage(i18n.resolveLanguage(store.get().language, app.getLocale()));
-    applyTrayLabels();
-    await applyRuntime(store.get());
-    refreshWheel();
+    let migrated;
+    try {
+      migrated = migrateSettings(parsed);
+    } catch (error) {
+      throw new Error(error.code === 'SETTINGS_TOO_NEW' ? t('error.importTooNew') : error.message);
+    }
+    return { canceled: false, state: await applySettings(migrated) };
+  });
+  ipcMain.handle('settings:reset', async () => ({ canceled: false, state: await applySettings(DEFAULT_SETTINGS) }));
+  ipcMain.handle('app:set-paused', (_event, value) => { setPaused(Boolean(value)); return getBootstrap(); });
+  ipcMain.handle('input:restart', () => {
+    wheel?.stop();
+    wheel = null;
+    runtimeStatus = { ...runtimeStatus, wheelHook: paused ? 'paused' : 'starting', wheelBackend: null, error: null };
+    startWheel();
     return getBootstrap();
   });
-  ipcMain.handle('action:test', (_event, action, pluginAction) => actions.run(action, { pluginAction }, { source: 'test' }));
+  ipcMain.handle('action:test', (_event, action, options) => actions.run(action, {
+    pluginAction: typeof options?.pluginAction === 'string' ? options.pluginAction : '',
+    launch: options?.launch
+  }, { source: 'test' }));
   ipcMain.handle('plugins:open-directory', () => shell.openPath(plugins.directory));
   ipcMain.handle('app:quit', () => { quitting = true; app.quit(); });
   ipcMain.handle('app:uninstall', async () => {
@@ -295,6 +383,7 @@ async function start() {
   store = new SettingsStore(path.join(app.getPath('userData'), 'settings.json'));
   const settings = store.load();
   i18n.setLanguage(i18n.resolveLanguage(settings.language, app.getLocale()));
+  scanApps();
   configureAutostart();
   try {
     // Refreshes AppImage paths after the application is moved or upgraded.

@@ -24,7 +24,7 @@ class WheelDispatcher {
     if (!zone) return false;
     if (!this.gate.accept(zone, direction)) return false;
     const mapping = settings.zones[zone];
-    this.runAction(mapping[direction], { pluginAction: mapping[`${direction}PluginAction`] }, {
+    this.runAction(mapping[direction], { pluginAction: mapping[`${direction}PluginAction`], launch: mapping[`${direction}Launch`] }, {
       source: meta.source || 'wheel', zone, direction, point, displayId: display.id
     });
     return true;

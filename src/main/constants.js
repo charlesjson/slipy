@@ -13,6 +13,9 @@ const ACTIONS = Object.freeze({
   'workspace-next': {},
   'volume-up': {},
   'volume-down': {},
+  'audio-mute': {},
+  'mic-mute': {},
+  'lock-screen': {},
   'brightness-up': {},
   'brightness-down': {},
   'media-play-pause': {},
@@ -22,7 +25,8 @@ const ACTIONS = Object.freeze({
   'window-prev': {},
   overview: {},
   'show-desktop': {},
-  'plugin-action': { internal: true }
+  'plugin-action': { internal: true },
+  'launch-app': { internal: true }
 });
 
 module.exports = { ACTIONS, ZONES };

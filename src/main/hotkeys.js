@@ -21,7 +21,7 @@ class HotkeyManager {
       try {
         ok = this.globalShortcut.register(shortcut.accelerator, () => this.runAction(
           shortcut.action,
-          { pluginAction: shortcut.pluginAction },
+          { pluginAction: shortcut.pluginAction, launch: shortcut.launch },
           { source: 'shortcut', accelerator: shortcut.accelerator }
         ));
       } catch { ok = false; }

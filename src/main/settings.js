@@ -5,8 +5,10 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { ACTIONS, ZONES } = require('./constants');
 
+const CURRENT_VERSION = 2;
+
 const DEFAULT_SETTINGS = Object.freeze({
-  version: 1,
+  version: CURRENT_VERSION,
   edgeThickness: 8,
   cornerSize: 96,
   wheelCooldownMs: 220,
@@ -27,9 +29,57 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function validAction(value, pluginAction) {
+// Stepwise schema upgrades: MIGRATIONS[n] rewrites a version-n object into
+// version n+1. Files written before `version` existed count as version 1.
+const MIGRATIONS = {
+  1: (value) => {
+    // v2 replaced the closeToTray boolean with the three-way closeAction.
+    if (value.closeAction === undefined && typeof value.closeToTray === 'boolean') {
+      value.closeAction = value.closeToTray ? 'tray' : 'quit';
+    }
+    delete value.closeToTray;
+    return value;
+  }
+};
+
+function migrateSettings(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return { version: CURRENT_VERSION };
+  let value = clone(input);
+  let version = Number.isInteger(value.version) && value.version > 0 ? value.version : 1;
+  if (version > CURRENT_VERSION) {
+    const error = new Error(`settings version ${version} is newer than supported version ${CURRENT_VERSION}`);
+    error.code = 'SETTINGS_TOO_NEW';
+    throw error;
+  }
+  while (version < CURRENT_VERSION) {
+    value = MIGRATIONS[version](value);
+    version += 1;
+  }
+  value.version = CURRENT_VERSION;
+  return value;
+}
+
+function validAction(value, pluginAction, launch) {
   if (value === 'plugin-action') return typeof pluginAction === 'string' && pluginAction.length <= 160;
+  if (value === 'launch-app') return launch !== null && launch !== undefined;
   return Object.hasOwn(ACTIONS, value);
+}
+
+// Launch configurations are user-owned commands, so only shape and size are
+// enforced here — whether the target exists is a runtime concern.
+function normalizeLaunch(input) {
+  if (!input || typeof input !== 'object') return null;
+  if (input.kind === 'desktop') {
+    const entry = typeof input.entry === 'string' ? input.entry.trim() : '';
+    if (!entry || entry.length > 500 || !entry.endsWith('.desktop')) return null;
+    return { kind: 'desktop', entry };
+  }
+  if (input.kind === 'exec') {
+    const command = typeof input.command === 'string' ? input.command.trim() : '';
+    if (!command || command.length > 2000) return null;
+    return { kind: 'exec', command };
+  }
+  return null;
 }
 
 function normalizeSettings(input = {}) {
@@ -40,12 +90,7 @@ function normalizeSettings(input = {}) {
   output.inputBackend = ['auto', 'uiohook', 'edge-windows'].includes(input.inputBackend) ? input.inputBackend : 'auto';
   output.language = ['auto', 'zh-CN', 'en'].includes(input.language) ? input.language : 'auto';
   output.theme = input.theme === 'light' ? 'light' : 'dark';
-  if (['ask', 'tray', 'quit'].includes(input.closeAction)) {
-    output.closeAction = input.closeAction;
-  } else if (typeof input.closeToTray === 'boolean') {
-    // Settings written before closeAction existed already made the choice.
-    output.closeAction = input.closeToTray ? 'tray' : 'quit';
-  }
+  if (['ask', 'tray', 'quit'].includes(input.closeAction)) output.closeAction = input.closeAction;
   output.startAtLogin = input.startAtLogin === true;
 
   for (const zone of ZONES) {
@@ -53,9 +98,11 @@ function normalizeSettings(input = {}) {
     for (const direction of ['up', 'down']) {
       const action = source[direction];
       const pluginAction = source[`${direction}PluginAction`] || '';
-      if (validAction(action, pluginAction)) {
+      const launch = normalizeLaunch(source[`${direction}Launch`]);
+      if (validAction(action, pluginAction, launch)) {
         output.zones[zone][direction] = action;
         if (action === 'plugin-action') output.zones[zone][`${direction}PluginAction`] = pluginAction;
+        if (action === 'launch-app') output.zones[zone][`${direction}Launch`] = launch;
       }
     }
   }
@@ -63,12 +110,14 @@ function normalizeSettings(input = {}) {
   if (Array.isArray(input.shortcuts)) {
     output.shortcuts = input.shortcuts.slice(0, 64).flatMap((item) => {
       if (!item || typeof item.accelerator !== 'string' || item.accelerator.length > 80) return [];
-      if (!validAction(item.action, item.pluginAction)) return [];
+      const launch = normalizeLaunch(item.launch);
+      if (!validAction(item.action, item.pluginAction, launch)) return [];
       return [{
         id: typeof item.id === 'string' && item.id ? item.id.slice(0, 80) : crypto.randomUUID(),
         accelerator: item.accelerator.trim(),
         action: item.action,
         pluginAction: item.action === 'plugin-action' ? item.pluginAction : '',
+        ...(item.action === 'launch-app' ? { launch } : {}),
         enabled: item.enabled !== false
       }];
     });
@@ -101,7 +150,12 @@ class SettingsStore {
 
   load() {
     try {
-      this.value = normalizeSettings(JSON.parse(fs.readFileSync(this.file, 'utf8')));
+      const raw = JSON.parse(fs.readFileSync(this.file, 'utf8'));
+      let migrated;
+      // A file from a newer Slipy must not prevent startup; normalization
+      // keeps whatever fields this version understands.
+      try { migrated = migrateSettings(raw); } catch { migrated = raw; }
+      this.value = normalizeSettings(migrated);
     } catch (error) {
       if (error.code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error;
     }
@@ -120,4 +174,4 @@ class SettingsStore {
   }
 }
 
-module.exports = { DEFAULT_SETTINGS, SettingsStore, normalizeSettings, closeChoiceFromDialog };
+module.exports = { CURRENT_VERSION, DEFAULT_SETTINGS, SettingsStore, normalizeSettings, migrateSettings, closeChoiceFromDialog };

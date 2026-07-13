@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { normalizeSettings, SettingsStore, closeChoiceFromDialog } = require('../src/main/settings');
+const { normalizeSettings, migrateSettings, SettingsStore, closeChoiceFromDialog, CURRENT_VERSION, DEFAULT_SETTINGS } = require('../src/main/settings');
 
 test('normalizes limits, actions, shortcuts and plugin configuration', () => {
   const value = normalizeSettings({
@@ -32,13 +32,53 @@ test('normalizes limits, actions, shortcuts and plugin configuration', () => {
   assert.equal(value.plugins['org.test'], true);
 });
 
-test('close action defaults to ask, validates values and migrates closeToTray', () => {
+test('close action defaults to ask and validates values', () => {
   assert.equal(normalizeSettings({}).closeAction, 'ask');
   assert.equal(normalizeSettings({ closeAction: 'quit' }).closeAction, 'quit');
   assert.equal(normalizeSettings({ closeAction: 'sideways' }).closeAction, 'ask');
+});
+
+test('migrations upgrade v1 files, folding closeToTray into closeAction', () => {
   // files written before closeAction existed already carried a decision
-  assert.equal(normalizeSettings({ closeToTray: true }).closeAction, 'tray');
-  assert.equal(normalizeSettings({ closeToTray: false }).closeAction, 'quit');
+  assert.equal(migrateSettings({ version: 1, closeToTray: true }).closeAction, 'tray');
+  assert.equal(migrateSettings({ version: 1, closeToTray: false }).closeAction, 'quit');
+  const migrated = migrateSettings({ closeToTray: true, closeAction: 'ask' });
+  assert.equal(migrated.closeAction, 'ask'); // an explicit choice wins
+  assert.equal('closeToTray' in migrated, false);
+  assert.equal(migrated.version, CURRENT_VERSION);
+  // missing or nonsense versions are treated as version 1
+  assert.equal(migrateSettings({}).version, CURRENT_VERSION);
+  assert.equal(migrateSettings({ version: 'x' }).version, CURRENT_VERSION);
+});
+
+test('migration refuses files from a newer version', () => {
+  assert.throws(() => migrateSettings({ version: CURRENT_VERSION + 1 }), (error) => error.code === 'SETTINGS_TOO_NEW');
+});
+
+test('defaults are already at the current version', () => {
+  assert.equal(DEFAULT_SETTINGS.version, CURRENT_VERSION);
+  assert.deepEqual(migrateSettings(DEFAULT_SETTINGS), JSON.parse(JSON.stringify(DEFAULT_SETTINGS)));
+});
+
+test('launch configurations validate per kind on zones and shortcuts', () => {
+  const value = normalizeSettings({
+    zones: {
+      top: { up: 'launch-app', upLaunch: { kind: 'exec', command: ' mpv --fs ' } },
+      bottom: { up: 'launch-app' } // missing launch config
+    },
+    shortcuts: [
+      { accelerator: 'Super+E', action: 'launch-app', launch: { kind: 'desktop', entry: '/usr/share/applications/org.kde.dolphin.desktop' } },
+      { accelerator: 'Super+R', action: 'launch-app', launch: { kind: 'desktop', entry: 'not-a-desktop-entry' } },
+      { accelerator: 'Super+T', action: 'volume-up', launch: { kind: 'exec', command: 'stray' } }
+    ]
+  });
+  assert.equal(value.zones.top.up, 'launch-app');
+  assert.deepEqual(value.zones.top.upLaunch, { kind: 'exec', command: 'mpv --fs' });
+  assert.equal(value.zones.bottom.up, 'none');
+  assert.equal(value.shortcuts.length, 2);
+  assert.deepEqual(value.shortcuts[0].launch, { kind: 'desktop', entry: '/usr/share/applications/org.kde.dolphin.desktop' });
+  // launch data never sticks to non-launch actions
+  assert.equal('launch' in value.shortcuts[1], false);
 });
 
 test('language preference validates and defaults to auto', () => {
