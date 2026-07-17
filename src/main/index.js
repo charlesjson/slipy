@@ -17,6 +17,7 @@ const { EdgeWheelService } = require('./edge-wheel-service');
 const { detectEnvironment } = require('./desktop-env');
 const { applicationDirs, listApplications } = require('./desktop-apps');
 const { probeTools: probePathTools } = require('./tool-probe');
+const { BackendClient, backendExecutable } = require('./backend-client');
 const i18n = require('./i18n');
 const { t } = i18n;
 const { executeSystemUninstaller, installationFor, startCleanupWorker, userArtifactPaths } = require('./uninstall');
@@ -29,12 +30,13 @@ let actions;
 let autostart;
 let hotkeys;
 let wheel;
+let backend;
 let quitting = false;
 let paused = false;
 let runtimeStatus = { wheelHook: 'starting', wheelBackend: null, error: null, shortcutResults: [], paused: false };
 let toolAvailability = {};
 let appList = [];
-const environment = detectEnvironment(process.env);
+let environment = detectEnvironment(process.env);
 
 // Launchable .desktop applications for the action pickers. Rescanned on
 // settings saves so display names follow the interface language.
@@ -279,9 +281,22 @@ function refreshWheel() {
 
 function probeTools() {
   const tools = ['wmctrl', 'xdotool', 'ydotool', 'gdbus', 'hyprctl', 'swaymsg', 'wpctl', 'pactl', 'playerctl', 'brightnessctl'];
-  toolAvailability = probePathTools(tools);
-  sendState();
-  return Promise.resolve();
+  return backend.request('probe_tools', { tools })
+    .catch(() => probePathTools(tools))
+    .then((availability) => { toolAvailability = availability; sendState(); });
+}
+
+async function initializeBackend() {
+  try {
+    await backend.request('ping');
+    environment = await backend.request('environment');
+    actions.environment = environment;
+    refreshWheel();
+  } catch (error) {
+    console.error(`Rust backend unavailable, using JavaScript fallback: ${error.message}`);
+    backend.stop();
+  }
+  await probeTools();
 }
 
 // Single pipeline for every settings write (save, import, reset), so side
@@ -381,6 +396,9 @@ async function start() {
   app.on('second-instance', showWindow);
   await app.whenReady();
 
+  backend = new BackendClient({ executable: backendExecutable({ packaged: app.isPackaged }) });
+  backend.on('log', (message) => console.error(`[rust-backend] ${message}`));
+
   store = new SettingsStore(path.join(app.getPath('userData'), 'settings.json'));
   const settings = store.load();
   i18n.setLanguage(i18n.resolveLanguage(settings.language, app.getLocale()));
@@ -404,7 +422,7 @@ async function start() {
   await applyRuntime(store.get());
 
   startWheel();
-  probeTools().catch(() => { /* diagnostics only */ });
+  initializeBackend().catch((error) => console.error(`Backend initialization failed: ${error.message}`));
 }
 
 app.on('before-quit', () => { quitting = true; });
@@ -412,6 +430,7 @@ app.on('will-quit', () => {
   wheel?.stop();
   hotkeys?.clear();
   plugins?.dispose();
+  backend?.stop();
 });
 app.on('window-all-closed', () => { /* tray application intentionally remains alive */ });
 

@@ -11,11 +11,13 @@
   "main": "src/main/index.js",
   "license": "MIT",
   "scripts": {
-    "start": "electron .",
-    "dev": "electron . --dev",
-    "test": "node --test",
-    "check": "node --check src/main/index.js && node --check src/main/settings.js && node --check src/main/plugins.js && node --check src/main/uninstall.js && node --check src/main/uninstall-worker.js && node --check src/main/desktop-env.js && node --check src/main/desktop-apps.js && node --check src/main/tool-probe.js && node --check src/main/action-backends.js && node --check src/main/actions.js && node --check src/main/edge-layout.js && node --check src/main/wheel-dispatch.js && node --check src/main/edge-wheel-service.js && node --check src/main/wheel-service.js && node --check src/main/i18n.js && node --check src/shared/locales.js && node --check src/shared/accelerator.js && node --check src/preload.js && node --check src/edge-preload.js && node --check src/renderer/app.js",
-    "dist": "electron-builder --linux",
+    "start": "npm run backend:build && electron .",
+    "dev": "npm run backend:build && electron . --dev",
+    "backend:build": "cargo build --manifest-path backend/Cargo.toml",
+    "backend:test": "cargo test --manifest-path backend/Cargo.toml",
+    "test": "node --test && npm run backend:test",
+    "check": "node --check src/main/index.js && node --check src/main/settings.js && node --check src/main/plugins.js && node --check src/main/uninstall.js && node --check src/main/uninstall-worker.js && node --check src/main/desktop-env.js && node --check src/main/desktop-apps.js && node --check src/main/tool-probe.js && node --check src/main/backend-client.js && node --check src/main/action-backends.js && node --check src/main/actions.js && node --check src/main/edge-layout.js && node --check src/main/wheel-dispatch.js && node --check src/main/edge-wheel-service.js && node --check src/main/wheel-service.js && node --check src/main/i18n.js && node --check src/shared/locales.js && node --check src/shared/accelerator.js && node --check src/preload.js && node --check src/edge-preload.js && node --check src/renderer/app.js",
+    "dist": "npm run backend:build -- --release && electron-builder --linux",
     "dist:installer": "bash scripts/build-installer.sh"
   },
   "dependencies": {
@@ -36,6 +38,12 @@
       "src/**/*",
       "assets/**/*",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "backend/target/release/slipy-backend",
+        "to": "backend/slipy-backend"
+      }
     ],
     "linux": {
       "syncDesktopName": true,

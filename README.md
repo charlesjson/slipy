@@ -18,7 +18,7 @@ Slipy 是一个 Linux 桌面效率工具：让鼠标滚轮在屏幕四角和四�
 ## 环境要求
 
 - Linux x64/arm64 桌面，X11 与 Wayland 会话均受支持。
-- Node.js 20+ 和 npm（从源码运行时）。
+- Node.js 20+、npm 和 Rust 工具链（从源码运行时）。
 - X11 会话：虚拟桌面切换推荐安装 `wmctrl`，窗口动作需要 `xdotool`。
 - Wayland 会话：KDE Plasma、GNOME、Hyprland 和 Sway 走各自的原生接口（DBus / `hyprctl` / `swaymsg`，通常无需额外安装）；其他合成器可安装 `ydotool` 并启用 `ydotoold` 服务作为通用兜底。
 - 其他动作按需安装 `playerctl`、`brightnessctl` 以及 `wpctl` 或 `pactl`。
@@ -74,6 +74,8 @@ npm start
 npm run check
 npm test
 ```
+
+`npm test` 会同时运行 Node.js 和 Rust 测试。
 
 打包通用 AppImage：
 
@@ -145,6 +147,7 @@ sudo /opt/slipy/uninstall.sh --system --uninstall
 ## 技术设计
 
 - Electron 主进程持有所有系统能力，渲染器启用 `contextIsolation`、sandbox 和 CSP。
+- 常驻 Rust sidecar 通过逐行 JSON RPC 向 Electron 提供桌面环境识别和系统工具探测；sidecar 不可用时自动回退到 JavaScript 实现。
 - 输入采集是可插拔后端：X11 用 `uiohook-napi` 全局钩子，Wayland 用屏幕边缘透明悬浮窗（`edge-wheel-service`），两者共享同一个纯函数区域引擎与防抖调度器（`wheel-dispatch`）。
 - 动作执行同样分层：`desktop-env` 检测会话与桌面家族，`action-backends` 为每个动作生成按优先级排序的命令链（原生合成器接口 → 通用注入工具），逐一尝试直到成功。
 - 配置写入 Electron `userData/settings.json`，使用临时文件 + rename 原子替换。

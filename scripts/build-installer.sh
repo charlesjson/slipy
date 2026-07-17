@@ -16,6 +16,8 @@ BUILDER="${ROOT}/node_modules/.bin/electron-builder"
 [[ -x "$BUILDER" ]] || { echo "请先运行 npm install。" >&2; exit 1; }
 
 echo "[1/4] 打包应用和 Electron 运行时…"
+echo "编译 Rust 后端…"
+cargo build --release --manifest-path backend/Cargo.toml
 "$BUILDER" --linux dir "--${ARCH}"
 
 case "$ARCH" in
@@ -24,6 +26,7 @@ case "$ARCH" in
 esac
 [[ -x "${UNPACKED}/slipy" ]] || { echo "electron-builder 未生成预期目录：$UNPACKED" >&2; exit 1; }
 [[ -f "${UNPACKED}/resources/app.asar" ]] || { echo "打包结果缺少 app.asar" >&2; exit 1; }
+[[ -x "${UNPACKED}/resources/backend/slipy-backend" ]] || { echo "打包结果缺少 Rust 后端" >&2; exit 1; }
 [[ -x "${UNPACKED}/chrome-sandbox" ]] || { echo "打包结果缺少 Electron sandbox" >&2; exit 1; }
 
 STAGE="${ROOT}/dist/.installer-stage"
