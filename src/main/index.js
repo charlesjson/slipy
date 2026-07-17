@@ -16,6 +16,7 @@ const { WheelService } = require('./wheel-service');
 const { EdgeWheelService } = require('./edge-wheel-service');
 const { detectEnvironment } = require('./desktop-env');
 const { applicationDirs, listApplications } = require('./desktop-apps');
+const { probeTools: probePathTools } = require('./tool-probe');
 const i18n = require('./i18n');
 const { t } = i18n;
 const { executeSystemUninstaller, installationFor, startCleanupWorker, userArtifactPaths } = require('./uninstall');
@@ -277,11 +278,10 @@ function refreshWheel() {
 }
 
 function probeTools() {
-  const { execFile } = require('node:child_process');
   const tools = ['wmctrl', 'xdotool', 'ydotool', 'gdbus', 'hyprctl', 'swaymsg', 'wpctl', 'pactl', 'playerctl', 'brightnessctl'];
-  return Promise.all(tools.map((tool) => new Promise((resolve) => {
-    execFile('which', [tool], (error) => resolve([tool, !error]));
-  }))).then((entries) => { toolAvailability = Object.fromEntries(entries); sendState(); });
+  toolAvailability = probePathTools(tools);
+  sendState();
+  return Promise.resolve();
 }
 
 // Single pipeline for every settings write (save, import, reset), so side

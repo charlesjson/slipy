@@ -104,6 +104,8 @@ dist/Slipy-<版本>-linux-<架构>.tar.gz
 sudo ./Slipy-0.1.0-linux-x64-installer.run --system
 ```
 
+系统级安装程序不会以 root 身份启动 Electron；安装完成后请回到普通桌面用户，从应用菜单或运行 `slipy` 启动。这样可正确连接当前用户的 X11/Wayland 会话，并避免生成 root 所有的配置文件。
+
 离线 `.run` 安装器遵循 XDG 和 freedesktop 目录规范，不调用特定发行版的包管理器，兼容 Debian/Ubuntu/Linux Mint、Fedora/RHEL、Arch/Manjaro、openSUSE 等主流桌面发行版，以及 GNOME、KDE Plasma、XFCE、Cinnamon 和 MATE。系统级图形化卸载通过通用的 PolicyKit `pkexec` 请求管理员权限。
 
 两种模式都会安装桌面菜单、512×512 图标和命令行入口。推荐在应用“关于与诊断”页面点击“卸载 Slipy 并删除全部数据”：独立卸载助手会等待 Electron 及其子进程退出，再删除程序和用户数据，避免退出阶段重新生成缓存。

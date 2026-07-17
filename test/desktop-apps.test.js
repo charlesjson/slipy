@@ -21,6 +21,7 @@ test('splitArgs handles quoting, escapes and unbalanced quotes', () => {
 
 test('execArgv strips field codes and unescapes percent signs', () => {
   assert.deepEqual(execArgv('firefox %u'), ['firefox']);
+  assert.deepEqual(execArgv('viewer --file=%U --icon=%i --literal=100%%'), ['viewer', '--literal=100%']);
   assert.deepEqual(execArgv('env FOO=100%% vlc --started-from-file %U'), ['env', 'FOO=100%', 'vlc', '--started-from-file']);
 });
 

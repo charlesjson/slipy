@@ -46,8 +46,9 @@ function splitArgs(line) {
 /** Exec= value → argv: tokenize, drop field codes (%f, %U, …), unescape %%. */
 function execArgv(execLine) {
   return splitArgs(String(execLine || ''))
-    .filter((argument) => !/^%[fFuUdDnNickvm]$/.test(argument))
-    .map((argument) => argument.replace(/%%/g, '%'));
+    .map((argument) => argument.replace(/%%/g, '\0'))
+    .filter((argument) => !/%[fFuUdDnNickvm]/.test(argument))
+    .map((argument) => argument.replace(/\0/g, '%'));
 }
 
 /** 'zh-CN' → ['zh_CN', 'zh'] lookup order for localized entry keys. */

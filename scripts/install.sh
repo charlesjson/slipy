@@ -248,6 +248,8 @@ if [[ "$MODE" == "user" && ":${PATH}:" != *":$(dirname "$BIN_LINK"):"* ]]; then
   echo "提示：$(dirname "$BIN_LINK") 当前不在 PATH 中，但桌面菜单仍可直接启动。"
 fi
 
-if [[ "$LAUNCH" -eq 1 ]]; then
+if [[ "$LAUNCH" -eq 1 && "$MODE" == "user" ]]; then
   nohup "${APP_DIR}/slipy" >/dev/null 2>&1 &
+elif [[ "$LAUNCH" -eq 1 ]]; then
+  echo "系统安装不会以 root 启动图形程序；请以桌面用户从应用菜单或运行 slipy 启动。"
 fi
