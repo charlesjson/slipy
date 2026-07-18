@@ -58,3 +58,11 @@ test('stop permanently disables the client and rejects pending requests', async 
   await assert.rejects(pending, /stopped/);
   await assert.rejects(client.request('ping'), /unavailable/);
 });
+
+test('emits unsolicited backend event messages', () => {
+  const client = new BackendClient({ executable: 'unused' });
+  let payload;
+  client.on('event:wheel', (value) => { payload = value; });
+  client.onData('{"event":"wheel","payload":{"direction":"up"}}\n');
+  assert.deepEqual(payload, { direction: 'up' });
+});

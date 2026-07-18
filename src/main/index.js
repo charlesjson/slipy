@@ -13,6 +13,7 @@ const { ActionExecutor } = require('./actions');
 const { Autostart } = require('./autostart');
 const { HotkeyManager } = require('./hotkeys');
 const { WheelService } = require('./wheel-service');
+const { RustWheelService } = require('./rust-wheel-service');
 const { EdgeWheelService } = require('./edge-wheel-service');
 const { detectEnvironment } = require('./desktop-env');
 const { applicationDirs, listApplications } = require('./desktop-apps');
@@ -30,6 +31,9 @@ let actions;
 let autostart;
 let hotkeys;
 let wheel;
+let wheelStartPromise = null;
+let wheelGeneration = 0;
+let rustWheelSuppressed = false;
 let backend;
 let quitting = false;
 let paused = false;
@@ -189,18 +193,19 @@ function applyTrayLabels() {
 // Tears down every input surface while paused: edge strips release their
 // screen pixels (important for games and remote desktops on Wayland) and
 // global shortcuts are unregistered, not merely ignored.
-function setPaused(next) {
+async function setPaused(next) {
   if (paused === next) return;
   paused = next;
   runtimeStatus.paused = next;
   if (next) {
+    wheelGeneration += 1;
     wheel?.stop();
     wheel = null;
     hotkeys.clear();
     runtimeStatus = { ...runtimeStatus, wheelHook: 'paused', wheelBackend: null, shortcutResults: [] };
   } else {
     runtimeStatus.shortcutResults = hotkeys.apply(store.get().shortcuts);
-    startWheel();
+    await ensureWheel();
   }
   applyTrayLabels();
   sendState();
@@ -234,6 +239,16 @@ function createWheelBackend(kind) {
     runAction: (...args) => actions.run(...args),
     onStatus: (status) => { runtimeStatus = { ...runtimeStatus, ...status }; sendState(); }
   };
+  if (kind === 'rust-xinput2') {
+    let service;
+    service = new RustWheelService({
+      backend, screen, ...common,
+      onFailure: (error) => {
+        recoverWheelService(service, error);
+      }
+    });
+    return service;
+  }
   if (kind === 'edge-windows') return new EdgeWheelService({ electron: { BrowserWindow, screen, ipcMain }, ...common });
   return new WheelService({ screen, ...common });
 }
@@ -244,39 +259,64 @@ function wheelBackendOrder() {
   // Wayland compositors block global hooks; edge overlays are the native fit.
   // On X11 the global hook is better (no pixels claimed at the edges), with
   // overlays as a fallback when libuiohook fails to load.
-  return environment.isWayland ? ['edge-windows'] : ['uiohook', 'edge-windows'];
+  if (environment.isWayland) return ['edge-windows'];
+  return rustWheelSuppressed ? ['uiohook', 'edge-windows'] : ['rust-xinput2', 'uiohook', 'edge-windows'];
 }
 
-function startWheel() {
+async function startWheel() {
   if (paused) return;
-  for (const kind of wheelBackendOrder()) {
-    const service = createWheelBackend(kind);
-    try {
-      service.start();
-      wheel = service;
-      wheel.kind = kind;
-      runtimeStatus.wheelBackend = kind;
-      sendState();
-      return;
-    } catch (error) {
-      try { service.stop(); } catch { /* never started */ }
-      runtimeStatus = { ...runtimeStatus, wheelHook: 'failed', wheelBackend: null, error: error.message };
+  if (wheelStartPromise) return wheelStartPromise;
+  const generation = wheelGeneration;
+  wheelStartPromise = (async () => {
+    for (const kind of wheelBackendOrder()) {
+      const service = createWheelBackend(kind);
+      try {
+        await service.start();
+        if (paused || generation !== wheelGeneration) {
+          service.stop();
+          return;
+        }
+        wheel = service;
+        wheel.kind = kind;
+        runtimeStatus = { ...runtimeStatus, wheelHook: 'running', wheelBackend: kind, error: null };
+        sendState();
+        return;
+      } catch (error) {
+        try { service.stop(); } catch { /* never started */ }
+        runtimeStatus = { ...runtimeStatus, wheelHook: 'failed', wheelBackend: null, error: error.message };
+      }
     }
-  }
-  wheel = null;
-  sendState();
+    wheel = null;
+    sendState();
+  })();
+  try { await wheelStartPromise; } finally { wheelStartPromise = null; }
 }
 
-function refreshWheel() {
+async function ensureWheel() {
+  await startWheel();
+  if (!paused && !wheel) await startWheel();
+}
+
+function recoverWheelService(service, error) {
+  service.stop();
+  if (wheel === service) wheel = null;
+  wheelGeneration += 1;
+  if (service.kind === 'rust-xinput2') rustWheelSuppressed = true;
+  runtimeStatus = { ...runtimeStatus, wheelHook: 'failed', wheelBackend: null, error: error.message };
+  if (!paused) ensureWheel().catch(() => {});
+}
+
+async function refreshWheel({ preferFirst = false } = {}) {
   if (paused) return;
   const order = wheelBackendOrder();
-  if (wheel && order.includes(wheel.kind)) {
+  if (wheel && order.includes(wheel.kind) && (!preferFirst || wheel.kind === order[0])) {
     wheel.applySettings();
     return;
   }
+  wheelGeneration += 1;
   wheel?.stop();
   wheel = null;
-  startWheel();
+  await ensureWheel();
 }
 
 function probeTools() {
@@ -291,7 +331,7 @@ async function initializeBackend() {
     await backend.request('ping');
     environment = await backend.request('environment');
     actions.environment = environment;
-    refreshWheel();
+    await refreshWheel({ preferFirst: true });
   } catch (error) {
     console.error(`Rust backend unavailable, using JavaScript fallback: ${error.message}`);
     backend.stop();
@@ -315,7 +355,7 @@ async function applySettings(value) {
   scanApps();
   applyTrayLabels();
   await applyRuntime(store.get());
-  refreshWheel();
+  await refreshWheel();
   return getBootstrap();
 }
 
@@ -354,12 +394,14 @@ function registerIpc() {
     return { canceled: false, state: await applySettings(migrated) };
   });
   ipcMain.handle('settings:reset', async () => ({ canceled: false, state: await applySettings(DEFAULT_SETTINGS) }));
-  ipcMain.handle('app:set-paused', (_event, value) => { setPaused(Boolean(value)); return getBootstrap(); });
-  ipcMain.handle('input:restart', () => {
+  ipcMain.handle('app:set-paused', async (_event, value) => { await setPaused(Boolean(value)); return getBootstrap(); });
+  ipcMain.handle('input:restart', async () => {
+    rustWheelSuppressed = false;
+    wheelGeneration += 1;
     wheel?.stop();
     wheel = null;
     runtimeStatus = { ...runtimeStatus, wheelHook: paused ? 'paused' : 'starting', wheelBackend: null, error: null };
-    startWheel();
+    await ensureWheel();
     return getBootstrap();
   });
   ipcMain.handle('action:test', (_event, action, options) => actions.run(action, {
@@ -421,7 +463,7 @@ async function start() {
   registerIpc();
   await applyRuntime(store.get());
 
-  startWheel();
+  await ensureWheel();
   initializeBackend().catch((error) => console.error(`Backend initialization failed: ${error.message}`));
 }
 

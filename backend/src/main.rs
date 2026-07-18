@@ -6,9 +6,14 @@ use std::fs;
 use std::io::{self, BufRead, Read, Write};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use wait_timeout::ChildExt;
+use x11rb::connection::Connection;
+use x11rb::protocol::Event;
+use x11rb::protocol::xinput::{ConnectionExt as _, EventMask, XIEventMask};
 
 const COMMAND_TIMEOUT: Duration = Duration::from_millis(2500);
 const MAX_OUTPUT: usize = 128 * 1024;
@@ -40,29 +45,43 @@ struct Candidate {
     delta: Option<i32>,
 }
 
+struct X11Listener {
+    id: u64,
+    stop: Arc<AtomicBool>,
+    thread: std::thread::JoinHandle<()>,
+}
+
+#[derive(Default)]
+struct AppState {
+    x11_listener: Option<X11Listener>,
+}
+
 fn main() {
     let stdin = io::stdin();
-    let mut stdout = io::BufWriter::new(io::stdout().lock());
+    let output = Arc::new(Mutex::new(io::stdout()));
+    let mut state = AppState::default();
 
     for line in stdin.lock().lines() {
         let response = match line {
-            Ok(line) => handle_line(&line),
+            Ok(line) => handle_line_with_state(&line, &mut state, &output),
             Err(error) => Response {
                 id: Value::Null,
                 result: None,
                 error: Some(error.to_string()),
             },
         };
-        if serde_json::to_writer(&mut stdout, &response).is_err()
-            || writeln!(stdout).is_err()
-            || stdout.flush().is_err()
-        {
+        if write_message(&output, &response).is_err() {
             break;
         }
     }
+    stop_x11_listener(&mut state);
 }
 
-fn handle_line(line: &str) -> Response {
+fn handle_line_with_state(
+    line: &str,
+    state: &mut AppState,
+    output: &Arc<Mutex<io::Stdout>>,
+) -> Response {
     let request: Request = match serde_json::from_str(line) {
         Ok(request) => request,
         Err(error) => {
@@ -78,6 +97,11 @@ fn handle_line(line: &str) -> Response {
         "environment" => Ok(environment()),
         "probe_tools" => probe_tools(&request.params),
         "run_candidates" => run_candidates(&request.params),
+        "start_x11_wheel" => start_x11_listener(state, Arc::clone(output), &request.params),
+        "stop_x11_wheel" => {
+            stop_x11_listener(state);
+            Ok(json!({ "stopped": true }))
+        }
         _ => Err(format!("unknown method: {}", request.method)),
     };
     match result {
@@ -91,6 +115,136 @@ fn handle_line(line: &str) -> Response {
             result: None,
             error: Some(error),
         },
+    }
+}
+
+#[cfg(test)]
+fn handle_line(line: &str) -> Response {
+    let output = Arc::new(Mutex::new(io::stdout()));
+    handle_line_with_state(line, &mut AppState::default(), &output)
+}
+
+fn write_message(output: &Arc<Mutex<io::Stdout>>, value: &impl Serialize) -> io::Result<()> {
+    let mut stdout = output
+        .lock()
+        .map_err(|_| io::Error::other("stdout lock poisoned"))?;
+    serde_json::to_writer(&mut *stdout, value)?;
+    writeln!(stdout)?;
+    stdout.flush()
+}
+
+fn start_x11_listener(
+    state: &mut AppState,
+    output: Arc<Mutex<io::Stdout>>,
+    params: &Value,
+) -> Result<Value, String> {
+    let listener_id = params
+        .get("listenerId")
+        .and_then(Value::as_u64)
+        .ok_or("params.listenerId must be an integer")?;
+    if let Some(listener) = &state.x11_listener {
+        if listener.id == listener_id {
+            return Ok(json!({ "started": true }));
+        }
+        return Err("another XInput2 listener is still active".into());
+    }
+    let (ready_tx, ready_rx) = mpsc::channel();
+    let stop = Arc::new(AtomicBool::new(false));
+    let thread_stop = Arc::clone(&stop);
+    let thread =
+        std::thread::spawn(move || x11_wheel_loop(thread_stop, output, ready_tx, listener_id));
+    match ready_rx.recv_timeout(Duration::from_secs(2)) {
+        Ok(Ok(())) => {
+            state.x11_listener = Some(X11Listener {
+                id: listener_id,
+                stop,
+                thread,
+            });
+            Ok(json!({ "started": true }))
+        }
+        Ok(Err(error)) => {
+            let _ = thread.join();
+            Err(error)
+        }
+        Err(_) => {
+            stop.store(true, Ordering::Relaxed);
+            Err("XInput2 listener startup timed out".into())
+        }
+    }
+}
+
+fn stop_x11_listener(state: &mut AppState) {
+    if let Some(listener) = state.x11_listener.take() {
+        listener.stop.store(true, Ordering::Relaxed);
+        let _ = listener.thread.join();
+    }
+}
+
+fn x11_wheel_loop(
+    stop: Arc<AtomicBool>,
+    output: Arc<Mutex<io::Stdout>>,
+    ready: mpsc::Sender<Result<(), String>>,
+    listener_id: u64,
+) {
+    let result = (|| -> Result<(), String> {
+        let (connection, screen_number) =
+            x11rb::connect(None).map_err(|error| error.to_string())?;
+        connection
+            .xinput_xi_query_version(2, 0)
+            .map_err(|error| error.to_string())?
+            .reply()
+            .map_err(|error| error.to_string())?;
+        let root = connection.setup().roots[screen_number].root;
+        connection
+            .xinput_xi_select_events(
+                root,
+                &[EventMask {
+                    // XIAllMasterDevices avoids duplicate slave/master delivery.
+                    deviceid: 1,
+                    mask: vec![XIEventMask::RAW_BUTTON_PRESS],
+                }],
+            )
+            .map_err(|error| error.to_string())?
+            .check()
+            .map_err(|error| error.to_string())?;
+        connection.flush().map_err(|error| error.to_string())?;
+        let _ = ready.send(Ok(()));
+
+        while !stop.load(Ordering::Relaxed) {
+            match connection
+                .poll_for_event()
+                .map_err(|error| error.to_string())?
+            {
+                Some(Event::XinputRawButtonPress(event)) => {
+                    let direction = match event.detail {
+                        4 => Some("up"),
+                        5 => Some("down"),
+                        _ => None,
+                    };
+                    if let Some(direction) = direction {
+                        let notification = json!({
+                            "event": "wheel",
+                            "payload": { "direction": direction, "listenerId": listener_id }
+                        });
+                        if write_message(&output, &notification).is_err() {
+                            break;
+                        }
+                    }
+                }
+                Some(_) | None => std::thread::sleep(Duration::from_millis(5)),
+            }
+        }
+        Ok(())
+    })();
+    if let Err(error) = result {
+        let _ = ready.send(Err(error.clone()));
+        let _ = write_message(
+            &output,
+            &json!({
+                "event": "x11-wheel-error",
+                "payload": { "error": error, "listenerId": listener_id }
+            }),
+        );
     }
 }
 

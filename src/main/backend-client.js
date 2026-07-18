@@ -56,6 +56,10 @@ class BackendClient extends EventEmitter {
       if (!line) continue;
       let message;
       try { message = JSON.parse(line); } catch { this.emit('log', `Invalid backend response: ${line}`); continue; }
+      if (typeof message.event === 'string') {
+        this.emit(`event:${message.event}`, message.payload);
+        continue;
+      }
       const pending = this.pending.get(message.id);
       if (!pending) continue;
       this.pending.delete(message.id);
@@ -86,6 +90,7 @@ class BackendClient extends EventEmitter {
     this.ready = false;
     child.removeAllListeners();
     for (const id of [...this.pending.keys()]) this.reject(id, error);
+    this.emit('unavailable', error);
   }
 
   stop() {

@@ -148,7 +148,7 @@ sudo /opt/slipy/uninstall.sh --system --uninstall
 
 - Electron 主进程持有所有系统能力，渲染器启用 `contextIsolation`、sandbox 和 CSP。
 - 常驻 Rust sidecar 通过逐行 JSON RPC 向 Electron 提供桌面环境识别、系统工具探测和内置命令动作执行；sidecar 不可用时自动回退到 JavaScript 实现。
-- 输入采集是可插拔后端：X11 用 `uiohook-napi` 全局钩子，Wayland 用屏幕边缘透明悬浮窗（`edge-wheel-service`），两者共享同一个纯函数区域引擎与防抖调度器（`wheel-dispatch`）。
+- 输入采集是可插拔后端：X11 优先使用 Rust XInput2 原始滚轮监听，失败时回退到 `uiohook-napi` 或边缘悬浮窗；Wayland 使用屏幕边缘透明悬浮窗（`edge-wheel-service`）。所有后端共享同一个纯函数区域引擎与防抖调度器（`wheel-dispatch`）。
 - 动作执行同样分层：`desktop-env` 检测会话与桌面家族，`action-backends` 为每个动作生成按优先级排序的命令链（原生合成器接口 → 通用注入工具），逐一尝试直到成功。
 - 配置写入 Electron `userData/settings.json`，使用临时文件 + rename 原子替换。
 - 插件只从独立目录扫描，入口路径不得逃逸插件目录；插件代码拥有主进程权限，因此仅加载可信插件。
