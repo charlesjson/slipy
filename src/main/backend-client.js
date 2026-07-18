@@ -13,6 +13,7 @@ class BackendClient extends EventEmitter {
     this.spawnProcess = spawnProcess;
     this.process = null;
     this.disabled = false;
+    this.ready = false;
     this.buffer = '';
     this.nextId = 1;
     this.pending = new Map();
@@ -31,15 +32,15 @@ class BackendClient extends EventEmitter {
     child.once('exit', (code, signal) => this.fail(child, new Error(`Rust backend exited (${signal || code})`)));
   }
 
-  request(method, params = {}) {
+  request(method, params = {}, { timeoutMs = this.timeoutMs } = {}) {
     try { this.start(); } catch (error) { return Promise.reject(error); }
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
         reject(new Error(`Rust backend request timed out: ${method}`));
-      }, this.timeoutMs);
-      this.pending.set(id, { resolve, reject, timer });
+      }, timeoutMs);
+      this.pending.set(id, { resolve, reject, timer, method });
       this.process.stdin.write(`${JSON.stringify({ id, method, params })}\n`, (error) => {
         if (error) this.reject(id, error);
       });
@@ -59,7 +60,14 @@ class BackendClient extends EventEmitter {
       if (!pending) continue;
       this.pending.delete(message.id);
       clearTimeout(pending.timer);
-      if (message.error) pending.reject(new Error(message.error)); else pending.resolve(message.result);
+      if (message.error) {
+        const error = new Error(typeof message.error === 'string' ? message.error : message.error.message);
+        if (message.error.code) error.code = message.error.code;
+        pending.reject(error);
+      } else {
+        if (pending.method === 'ping') this.ready = true;
+        pending.resolve(message.result);
+      }
     }
   }
 
@@ -75,6 +83,7 @@ class BackendClient extends EventEmitter {
     if (this.process !== child) return;
     this.process = null;
     this.disabled = true;
+    this.ready = false;
     child.removeAllListeners();
     for (const id of [...this.pending.keys()]) this.reject(id, error);
   }
@@ -83,12 +92,15 @@ class BackendClient extends EventEmitter {
     const child = this.process;
     this.process = null;
     this.disabled = true;
+    this.ready = false;
     if (child) {
       child.removeAllListeners();
       child.kill();
     }
     for (const id of [...this.pending.keys()]) this.reject(id, new Error('Rust backend stopped'));
   }
+
+  isAvailable() { return Boolean(this.process) && this.ready && !this.disabled; }
 }
 
 function backendExecutable({ packaged, resourcesPath = process.resourcesPath, projectRoot = path.join(__dirname, '../..') }) {

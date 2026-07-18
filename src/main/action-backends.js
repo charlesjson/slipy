@@ -61,6 +61,8 @@ function gnomeWorkspaceEval(delta) {
 // EWMH cycle used on X11: read the desktop list, activate the neighbour.
 function wmctrlCycle(delta) {
   return {
+    operation: 'wmctrl-cycle',
+    delta,
     async run({ exec, detached }) {
       const output = await exec('wmctrl', ['-d']);
       const desktops = output.trim().split('\n').filter(Boolean);

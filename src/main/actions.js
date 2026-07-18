@@ -64,12 +64,23 @@ async function firstAvailable(candidates) {
   throw lastError || new Error(t('error.noCommand'));
 }
 
+function backendCandidates(candidates) {
+  return candidates.map((candidate) => {
+    if (Array.isArray(candidate)) return { command: candidate[0], args: candidate[1] };
+    if (candidate.operation === 'wmctrl-cycle') return { operation: candidate.operation, delta: candidate.delta };
+    if (typeof candidate.run === 'function') return null;
+    return { command: candidate.command, args: candidate.args || [], expect: candidate.expect?.source };
+  });
+}
+
 class ActionExecutor {
-  constructor({ plugins, notify, log = console.error, environment = detectEnvironment() }) {
+  constructor({ plugins, backend = null, notify, log = console.error, environment = detectEnvironment() }) {
     this.plugins = plugins;
+    this.backend = backend;
     this.notify = notify;
     this.log = log;
     this.environment = environment;
+    this.backendActionRunning = false;
   }
 
   async run(action, options = {}, context = {}) {
@@ -85,11 +96,33 @@ class ActionExecutor {
       else if (action === 'launch-app') candidates = launchCandidates(options.launch);
       else candidates = actionCandidates(action, this.environment);
       if (!candidates) throw new Error(t('error.unknownAction', { action }));
-      await firstAvailable(candidates);
+      const rustCandidates = backendCandidates(candidates);
+      if (this.backend?.isAvailable() && rustCandidates.every(Boolean)) {
+        if (this.backendActionRunning) return { ok: false, busy: true, error: t('error.actionBusy') };
+        this.backendActionRunning = true;
+        try {
+          const result = await this.backend.request('run_candidates', { candidates: rustCandidates }, { timeoutMs: 18_000 });
+          if (!result.ok) {
+            const error = new Error(result.error);
+            error.code = result.code;
+            Object.assign(error, result.details);
+            throw error;
+          }
+        } finally {
+          this.backendActionRunning = false;
+        }
+      } else {
+        await firstAvailable(candidates);
+      }
       return { ok: true };
     } catch (error) {
       this.log(`action ${action} failed`, error);
-      const message = error.code === 'ENOENT' ? t('notify.missingCommand') : error.message;
+      let message = error.message;
+      if (error.code === 'ENOENT') message = t('notify.missingCommand');
+      else if (error.code === 'COMMAND_FAILED' && error.command) message = t('error.exitCode', { command: error.command, code: error.exitCode ?? '?' });
+      else if (error.code === 'COMMAND_REFUSED' && error.command) message = t('error.refused', { command: error.command, output: error.output || t('error.emptyOutput') });
+      else if (error.code === 'COMMAND_TIMEOUT' && error.command) message = t('error.commandTimeout', { command: error.command });
+      else if (error.code === 'NO_WORKSPACES') message = t('error.noWorkspaces');
       // Test runs surface the result in the UI; a notification would be noise.
       if (context.source !== 'test') this.notify?.(t('notify.actionFailedTitle'), message);
       return { ok: false, error: message };
@@ -97,4 +130,4 @@ class ActionExecutor {
   }
 }
 
-module.exports = { ActionExecutor, firstAvailable };
+module.exports = { ActionExecutor, firstAvailable, backendCandidates };

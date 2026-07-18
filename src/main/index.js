@@ -414,7 +414,7 @@ async function start() {
   }
 
   plugins = new PluginManager(path.join(app.getPath('userData'), 'plugins'), { notify, log: console.log });
-  actions = new ActionExecutor({ plugins, notify, environment });
+  actions = new ActionExecutor({ plugins, backend, notify, environment });
   hotkeys = new HotkeyManager(globalShortcut, (...args) => actions.run(...args));
   createWindow();
   createTray();

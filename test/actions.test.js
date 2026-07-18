@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { ActionExecutor, firstAvailable } = require('../src/main/actions');
+const { ActionExecutor, firstAvailable, backendCandidates } = require('../src/main/actions');
 
 test('falls back when an available candidate exits unsuccessfully', async () => {
   await assert.doesNotReject(firstAvailable([
@@ -52,4 +52,48 @@ test('launch-app spawns the configured command without waiting for exit', async 
 
   const invalid = await executor.run('launch-app', {}, { source: 'test' });
   assert.equal(invalid.ok, false);
+});
+
+test('serializes command and workspace candidates for the Rust backend', () => {
+  const serialized = backendCandidates([
+    { command: 'tool', args: ['one'], expect: /success/ },
+    { operation: 'wmctrl-cycle', delta: -1, run: () => {} }
+  ]);
+  assert.deepEqual(serialized, [
+    { command: 'tool', args: ['one'], expect: 'success' },
+    { operation: 'wmctrl-cycle', delta: -1 }
+  ]);
+  assert.deepEqual(backendCandidates([{ run: () => {} }]), [null]);
+});
+
+test('uses the Rust backend for built-in actions and reports its failures', async () => {
+  const calls = [];
+  const backend = {
+    isAvailable: () => true,
+    request: async (...args) => { calls.push(args); return { ok: true }; }
+  };
+  const executor = new ActionExecutor({ plugins: null, backend, notify: () => {}, log: () => {}, environment: { desktop: 'unknown', isWayland: false } });
+  assert.deepEqual(await executor.run('volume-up', {}, { source: 'test' }), { ok: true });
+  assert.equal(calls[0][0], 'run_candidates');
+  assert.equal(calls[0][2].timeoutMs, 18_000);
+
+  backend.request = async () => ({ ok: false, code: 'COMMAND_FAILED', error: 'backend failed' });
+  assert.deepEqual(await executor.run('volume-up', {}, { source: 'test' }), { ok: false, error: 'backend failed' });
+});
+
+test('drops overlapping Rust actions instead of queueing or falling back', async () => {
+  let release;
+  const backend = {
+    isAvailable: () => true,
+    request: () => new Promise((resolve) => { release = () => resolve({ ok: true }); })
+  };
+  const executor = new ActionExecutor({ plugins: null, backend, notify: () => {}, log: () => {}, environment: { desktop: 'unknown', isWayland: false } });
+  const first = executor.run('volume-up', {}, { source: 'test' });
+  const second = executor.run('volume-down', {}, { source: 'test' });
+  const busy = await second;
+  assert.equal(busy.ok, false);
+  assert.equal(busy.busy, true);
+  assert.equal(typeof busy.error, 'string');
+  release();
+  assert.deepEqual(await first, { ok: true });
 });

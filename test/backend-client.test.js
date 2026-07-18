@@ -19,6 +19,9 @@ test('correlates concurrent backend requests and surfaces backend errors', async
   assert.deepEqual(one, { method: 'one', params: { value: 1 } });
   assert.deepEqual(two, { method: 'two', params: { value: 2 } });
   await assert.rejects(client.request('error'), /fixture error/);
+  assert.equal(client.isAvailable(), false);
+  await client.request('ping');
+  assert.equal(client.isAvailable(), true);
   client.stop();
 });
 
