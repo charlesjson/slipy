@@ -31,18 +31,21 @@ function normalizeDesktop(env) {
   if (env.HYPRLAND_INSTANCE_SIGNATURE) return 'hyprland';
   if (env.SWAYSOCK) return 'sway';
 
-  const names = `${env.XDG_CURRENT_DESKTOP || ''}:${env.XDG_SESSION_DESKTOP || ''}:${env.DESKTOP_SESSION || ''}`
-    .toLowerCase();
   const families = [
     ['hyprland', 'hyprland'], ['sway', 'sway'],
-    ['kde', 'kde'], ['plasma', 'kde'],
-    ['gnome', 'gnome'], ['unity', 'gnome'], ['ubuntu', 'gnome'], ['pantheon', 'gnome'],
+    ['kde', 'kde'], ['plasma', 'kde'], ['kubuntu', 'kde'],
     ['cinnamon', 'cinnamon'], ['x-cinnamon', 'cinnamon'],
-    ['xfce', 'xfce'], ['mate', 'mate'], ['lxqt', 'lxqt'], ['lxde', 'lxde'],
-    ['budgie', 'budgie'], ['cosmic', 'cosmic'], ['deepin', 'deepin'], ['dde', 'deepin']
+    ['xfce', 'xfce'], ['xubuntu', 'xfce'], ['mate', 'mate'],
+    ['lxqt', 'lxqt'], ['lxde', 'lxde'], ['lubuntu', 'lxqt'],
+    ['budgie', 'budgie'], ['cosmic', 'cosmic'], ['deepin', 'deepin'], ['dde', 'deepin'],
+    // Specific variants must win over shared GNOME/Ubuntu session labels.
+    ['gnome', 'gnome'], ['unity', 'gnome'], ['pantheon', 'gnome'], ['ubuntu', 'gnome']
   ];
-  for (const [needle, family] of families) {
-    if (names.includes(needle)) return family;
+  for (const source of [env.XDG_CURRENT_DESKTOP, env.XDG_SESSION_DESKTOP, env.DESKTOP_SESSION]) {
+    const names = String(source || '').toLowerCase();
+    for (const [needle, family] of families) {
+      if (names.includes(needle)) return family;
+    }
   }
   return 'unknown';
 }

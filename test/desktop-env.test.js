@@ -32,3 +32,18 @@ test('falls back to display variables when session type is missing', () => {
 test('unknown desktop stays unknown', () => {
   assert.equal(detectEnvironment({ XDG_SESSION_TYPE: 'x11', XDG_CURRENT_DESKTOP: 'weston' }).desktop, 'unknown');
 });
+
+test('Ubuntu flavors keep their actual desktop family', () => {
+  for (const [name, desktop] of [
+    ['ubuntu:XFCE', 'xfce'], ['ubuntu:MATE', 'mate'],
+    ['ubuntu:Budgie', 'budgie'], ['ubuntu:Cinnamon', 'cinnamon']
+  ]) {
+    assert.equal(detectEnvironment({ XDG_CURRENT_DESKTOP: name }).desktop, desktop);
+  }
+});
+
+test('current desktop takes priority over legacy session names', () => {
+  assert.equal(detectEnvironment({
+    XDG_CURRENT_DESKTOP: 'GNOME', DESKTOP_SESSION: 'plasma'
+  }).desktop, 'gnome');
+});

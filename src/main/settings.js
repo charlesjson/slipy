@@ -29,6 +29,12 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function assertSettingsObject(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw Object.assign(new Error('settings must be a JSON object'), { code: 'SETTINGS_INVALID' });
+  }
+}
+
 // Stepwise schema upgrades: MIGRATIONS[n] rewrites a version-n object into
 // version n+1. Files written before `version` existed count as version 1.
 const MIGRATIONS = {
@@ -43,7 +49,7 @@ const MIGRATIONS = {
 };
 
 function migrateSettings(input) {
-  if (!input || typeof input !== 'object' || Array.isArray(input)) return { version: CURRENT_VERSION };
+  assertSettingsObject(input);
   let value = clone(input);
   let version = Number.isInteger(value.version) && value.version > 0 ? value.version : 1;
   if (version > CURRENT_VERSION) {
@@ -83,6 +89,7 @@ function normalizeLaunch(input) {
 }
 
 function normalizeSettings(input = {}) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) input = {};
   const output = clone(DEFAULT_SETTINGS);
   output.edgeThickness = clamp(input.edgeThickness, 1, 64, output.edgeThickness);
   output.cornerSize = clamp(input.cornerSize, 24, 320, output.cornerSize);
@@ -165,11 +172,20 @@ class SettingsStore {
   get() { return clone(this.value); }
 
   save(value) {
-    this.value = normalizeSettings(value);
+    assertSettingsObject(value);
+    const normalized = normalizeSettings(value);
     fs.mkdirSync(path.dirname(this.file), { recursive: true, mode: 0o700 });
-    const temporary = `${this.file}.${process.pid}.tmp`;
-    fs.writeFileSync(temporary, `${JSON.stringify(this.value, null, 2)}\n`, { mode: 0o600 });
-    fs.renameSync(temporary, this.file);
+    const temporary = `${this.file}.${process.pid}.${crypto.randomUUID()}.tmp`;
+    try {
+      fs.writeFileSync(temporary, `${JSON.stringify(normalized, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
+      fs.renameSync(temporary, this.file);
+    } catch (error) {
+      try { fs.unlinkSync(temporary); } catch { /* Preserve the original write error. */ }
+      throw error;
+    }
+    // Publish only after the disk commit succeeds, so a failed save cannot
+    // silently change the live configuration.
+    this.value = normalized;
     return this.get();
   }
 }

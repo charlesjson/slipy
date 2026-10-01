@@ -38,3 +38,12 @@ test('maps positive rotation to down and ignores horizontal wheels', () => {
   assert.equal(calls[0][0], 'workspace-next');
   assert.equal(calls[0][2].direction, 'down');
 });
+
+test('ignores zero and invalid wheel rotations', () => {
+  const calls = [];
+  const service = createService((...args) => calls.push(args));
+  for (const rotation of [0, undefined, NaN, Infinity, -Infinity]) {
+    service.onWheel({ direction: 3, rotation });
+  }
+  assert.equal(calls.length, 0);
+});

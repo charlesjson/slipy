@@ -8,10 +8,11 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <aside class="sidebar">
+  <div id="startup-panel" class="startup-panel" role="status"><img src="../../assets/icon.svg" alt=""><p id="startup-message">正在加载设置…</p><button id="startup-retry" class="secondary" hidden>重试</button></div>
+  <aside class="sidebar" inert>
     <div class="brand"><img src="../../assets/icon.svg" alt=""><div><strong>Slipy</strong><span data-i18n="brand.tagline">让屏幕边缘更顺手</span></div></div>
     <nav aria-label="Slipy">
-      <button class="nav active" data-page="zones"><span class="nav-icon">⌁</span><span class="nav-label" data-i18n="nav.zones">滚轮区域</span></button>
+      <button class="nav active" data-page="zones" aria-current="page"><span class="nav-icon">⌁</span><span class="nav-label" data-i18n="nav.zones">滚轮区域</span></button>
       <button class="nav" data-page="shortcuts"><span class="nav-icon">⌘</span><span class="nav-label" data-i18n="nav.shortcuts">全局快捷键</span></button>
       <button class="nav" data-page="plugins"><span class="nav-icon">◇</span><span class="nav-label" data-i18n="nav.plugins">插件</span></button>
       <button class="nav" data-page="general"><span class="nav-icon">⚙</span><span class="nav-label" data-i18n="nav.general">通用设置</span></button>
@@ -26,17 +27,18 @@
     </div>
   </aside>
 
-  <main>
+  <main inert>
     <header>
       <div><p class="eyebrow">LINUX DESKTOP CONTROL</p><h1 id="page-title" data-i18n="nav.zones">滚轮区域</h1></div>
-      <div class="header-actions"><span id="save-note"></span><button id="pause-button" class="ghost" data-i18n="pause.button">暂停</button><button id="save-button" class="primary" data-i18n="save.button">保存设置</button></div>
+      <div class="header-actions"><span id="save-note" role="status" aria-live="polite"></span><button id="discard-button" class="ghost" data-i18n="save.discard" disabled>撤销修改</button><button id="pause-button" class="ghost" data-i18n="pause.button">暂停</button><button id="save-button" class="primary" data-i18n="save.button" aria-keyshortcuts="Control+S Meta+S">保存设置</button></div>
     </header>
+    <p id="app-message" class="app-message" role="alert" hidden></p>
 
     <section class="page active" id="page-zones">
       <div class="intro"><span class="section-number">01 / EDGE WHEEL</span><h2 data-i18n="zones.heading">把屏幕边缘变成快捷控制器</h2><p data-i18n="zones.intro">滚轮进入四个角或四条边时执行指定动作。四角优先于边缘，多显示器会分别识别。</p></div>
       <div class="zones-layout">
         <div class="monitor-card">
-          <div class="monitor-label"><span></span><em data-i18n="zones.preview">显示器区域预览</em></div>
+          <div class="monitor-label"><span></span><em data-i18n="zones.preview">显示器区域预览</em><b id="zone-summary"></b></div>
           <div class="monitor" id="zone-grid">
             <button data-zone="topLeft" data-i18n="zone.topLeft">左上角</button><button data-zone="top" data-i18n="zone.top">顶部</button><button data-zone="topRight" data-i18n="zone.topRight">右上角</button>
             <button data-zone="left" data-i18n="zone.left">左侧</button><div class="monitor-center"><img src="../../assets/icon.svg" alt=""><span data-i18n="zones.pick">选择一个区域进行配置</span></div><button data-zone="right" data-i18n="zone.right">右侧</button>
@@ -46,8 +48,8 @@
         </div>
         <div class="panel zone-editor">
           <div class="panel-heading"><div><span class="badge" data-i18n="zones.current">当前区域</span><h3 id="zone-name">左上角</h3></div><div class="test-buttons"><button id="test-up" class="ghost" data-i18n="zones.testUp">测试向上</button><button id="test-down" class="ghost" data-i18n="zones.testDown">测试向下</button></div></div>
-          <label><span data-i18n="zones.up">滚轮向上</span><select id="zone-up"></select><input id="zone-up-command" type="text" class="command-input" hidden></label>
-          <label><span data-i18n="zones.down">滚轮向下</span><select id="zone-down"></select><input id="zone-down-command" type="text" class="command-input" hidden></label>
+          <label for="zone-up"><span data-i18n="zones.up">滚轮向上</span></label><select id="zone-up"></select><input id="zone-up-command" type="text" class="command-input" data-i18n-label="apps.customUp" hidden>
+          <label for="zone-down"><span data-i18n="zones.down">滚轮向下</span></label><select id="zone-down"></select><input id="zone-down-command" type="text" class="command-input" data-i18n-label="apps.customDown" hidden>
           <p id="test-result" class="test-result" aria-live="polite"></p>
           <div class="callout"><b data-i18n="zones.calloutTitle">动作触发说明</b><span data-i18n="zones.calloutBody">连续滚动会受到防抖间隔限制，避免一次滚轮手势切换多个桌面。</span></div>
         </div>
@@ -85,7 +87,7 @@
       </div>
       <div class="panel settings-panel">
         <div class="toggle-row config-row"><div><b data-i18n="config.heading">配置备份</b><span data-i18n="config.desc">导出、导入或重置全部设置</span></div><div class="config-buttons"><button id="export-config" class="secondary" data-i18n="config.export">导出配置…</button><button id="import-config" class="secondary" data-i18n="config.import">导入配置…</button><button id="reset-config" class="ghost" data-i18n="config.reset">恢复默认设置</button></div></div>
-        <span id="config-note" class="hint"></span>
+        <p id="config-note" class="hint" role="status" aria-live="polite"></p>
       </div>
     </section>
 
@@ -98,7 +100,7 @@
         <div class="panel"><span data-i18n="about.desktop">桌面环境</span><b id="diag-desktop">—</b></div>
         <div class="panel"><span data-i18n="about.version">Slipy 版本</span><b id="diag-version">—</b></div>
         <div class="panel tools"><span data-i18n="about.tools">系统命令可用性</span><div id="diag-tools" class="tool-chips"></div></div>
-        <div class="panel"><span data-i18n="about.lastError">最近错误</span><b id="diag-error">—</b></div>
+        <div class="panel diagnostic-error"><span data-i18n="about.lastError">最近错误</span><b id="diag-error">—</b></div>
       </div>
       <div class="diag-actions"><button id="restart-input" class="secondary" data-i18n="about.restartInput">重启输入监听</button></div>
       <div class="panel notice"><h3 data-i18n="about.noticeTitle">Linux 兼容性</h3><p data-i18n-html="about.noticeBodyHtml"><b>X11：</b>通过全局输入钩子监听滚轮，动作使用 <code>wmctrl</code>/<code>xdotool</code>。<br><b>Wayland：</b>Slipy 在已配置的屏幕边缘放置透明悬浮条来接收滚轮事件；动作优先走桌面环境的原生接口——KDE 与 GNOME 使用 DBus，Hyprland 使用 <code>hyprctl</code>，Sway 使用 <code>swaymsg</code>，其余情况可安装 <code>ydotool</code>（需启用 <code>ydotoold</code> 服务）作为通用兜底。</p><p data-i18n-html="about.noticeExtraHtml">媒体、音量和亮度动作分别需要 <code>playerctl</code>、<code>wpctl/pactl</code>、<code>brightnessctl</code>，与显示服务器无关。</p></div>

@@ -5,7 +5,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('slipy', Object.freeze({
   getState: () => ipcRenderer.invoke('settings:get'),
   saveSettings: (settings) => ipcRenderer.invoke('settings:save', settings),
-  exportSettings: () => ipcRenderer.invoke('settings:export'),
+  exportSettings: (settings) => ipcRenderer.invoke('settings:export', settings),
   importSettings: () => ipcRenderer.invoke('settings:import'),
   resetSettings: () => ipcRenderer.invoke('settings:reset'),
   setPaused: (value) => ipcRenderer.invoke('app:set-paused', value),

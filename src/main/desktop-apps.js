@@ -81,6 +81,7 @@ function parseDesktopEntry(text, language) {
     type: values.Type,
     name: localized('Name'),
     exec: values.Exec,
+    dbusActivatable: values.DBusActivatable === 'true',
     noDisplay: values.NoDisplay === 'true',
     hidden: values.Hidden === 'true',
     terminal: values.Terminal === 'true'
@@ -89,9 +90,11 @@ function parseDesktopEntry(text, language) {
 
 /** XDG application directories in precedence order (first wins). */
 function applicationDirs(env, home = env.HOME || '') {
-  const dataHome = env.XDG_DATA_HOME || (home ? path.join(home, '.local', 'share') : '');
+  const fallbackHome = home && path.isAbsolute(home) ? path.join(home, '.local', 'share') : '';
+  const dataHome = env.XDG_DATA_HOME && path.isAbsolute(env.XDG_DATA_HOME) ? env.XDG_DATA_HOME : fallbackHome;
   const dataDirs = (env.XDG_DATA_DIRS || '/usr/local/share:/usr/share').split(':');
-  return [dataHome, ...dataDirs].filter(Boolean).map((dir) => path.join(dir, 'applications'));
+  return [...new Set([dataHome, ...dataDirs].filter((dir) => dir && path.isAbsolute(dir))
+    .map((dir) => path.join(dir, 'applications')))];
 }
 
 /**
@@ -101,16 +104,20 @@ function applicationDirs(env, home = env.HOME || '') {
  */
 function listApplications(dirs, language) {
   const byId = new Map();
+  const seen = new Set();
   for (const dir of dirs) {
     let names = [];
     try { names = fs.readdirSync(dir, { recursive: true }); } catch { continue; }
     for (const name of names.map(String)) {
       if (!name.endsWith('.desktop')) continue;
       const id = name.split(path.sep).join('-').replace(/\.desktop$/, '');
-      if (byId.has(id)) continue;
+      if (seen.has(id)) continue;
       let entry;
       try { entry = parseDesktopEntry(fs.readFileSync(path.join(dir, name), 'utf8'), language); } catch { continue; }
-      if (entry.type !== 'Application' || !entry.name || !entry.exec) continue;
+      // Higher-priority entries also shadow lower-priority ones when hidden
+      // or incomplete. Hidden=true is commonly a minimal deletion marker.
+      seen.add(id);
+      if (entry.type !== 'Application' || !entry.name || (!entry.exec && !entry.dbusActivatable)) continue;
       if (entry.noDisplay || entry.hidden) continue;
       byId.set(id, { id, name: entry.name, file: path.join(dir, name) });
     }

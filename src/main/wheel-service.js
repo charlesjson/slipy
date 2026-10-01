@@ -32,6 +32,7 @@ class WheelService {
     // libuiohook sends horizontal and vertical wheels to this listener.
     // WheelDirection.VERTICAL is 3.
     if (event.direction !== undefined && event.direction !== 3) return;
+    if (!Number.isFinite(event.rotation) || event.rotation === 0) return;
     // uiohook uses native X11 pixels while Electron display bounds use DIP.
     // Electron's cursor point keeps the point and bounds in one coordinate space.
     const cursor = this.screen.getCursorScreenPoint?.() || event;

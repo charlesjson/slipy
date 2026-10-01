@@ -44,6 +44,32 @@ test('applicationDirs follows XDG precedence with defaults', () => {
   assert.ok(fallback.includes('/usr/share/applications'));
 });
 
+test('applicationDirs ignores relative XDG paths and duplicate search directories', () => {
+  assert.deepEqual(applicationDirs({
+    HOME: '/home/u', XDG_DATA_HOME: 'relative', XDG_DATA_DIRS: '/a:relative:/a:/b'
+  }), ['/home/u/.local/share/applications', '/a/applications', '/b/applications']);
+});
+
+test('user hidden and NoDisplay entries shadow system applications, including minimal tombstones', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'slipy-hidden-apps-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const dirs = ['user', 'system'].map((name) => path.join(root, name));
+  dirs.forEach((dir) => fs.mkdirSync(dir));
+  for (const [file, flag] of [['hidden.desktop', 'Hidden=true'], ['quiet.desktop', 'NoDisplay=true']]) {
+    fs.writeFileSync(path.join(dirs[0], file), `[Desktop Entry]\n${flag}\n`);
+    fs.writeFileSync(path.join(dirs[1], file), '[Desktop Entry]\nType=Application\nName=Hidden app\nExec=app\n');
+  }
+  assert.deepEqual(listApplications(dirs, 'en'), []);
+});
+
+test('DBus-activated applications do not need an Exec key to be listed', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'slipy-dbus-apps-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const file = path.join(root, 'org.example.App.desktop');
+  fs.writeFileSync(file, '[Desktop Entry]\nType=Application\nName=DBus App\nDBusActivatable=true\n');
+  assert.deepEqual(listApplications([root], 'en'), [{ id: 'org.example.App', name: 'DBus App', file }]);
+});
+
 test('listApplications filters hidden entries, dedupes by id and sorts by name', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'slipy-apps-'));
   const user = path.join(root, 'user');

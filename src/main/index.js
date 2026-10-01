@@ -6,7 +6,7 @@ const {
   app, BrowserWindow, Menu, Tray, ipcMain, globalShortcut, screen,
   nativeImage, Notification, shell, dialog
 } = require('electron');
-const { SettingsStore, DEFAULT_SETTINGS, migrateSettings, closeChoiceFromDialog } = require('./settings');
+const { SettingsStore, DEFAULT_SETTINGS, migrateSettings, normalizeSettings, closeChoiceFromDialog } = require('./settings');
 const { ACTIONS } = require('./constants');
 const { PluginManager } = require('./plugins');
 const { ActionExecutor } = require('./actions');
@@ -98,15 +98,16 @@ function getBootstrap() {
 }
 
 function createWindow() {
+  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
   mainWindow = new BrowserWindow({
-    width: 1120,
-    height: 760,
-    minWidth: 880,
-    minHeight: 620,
+    width: Math.min(1120, width),
+    height: Math.min(760, height),
+    minWidth: Math.min(640, width),
+    minHeight: Math.min(480, height),
     show: false,
     title: 'Slipy',
     icon: path.join(__dirname, '../../assets/icon.png'),
-    backgroundColor: '#0d1220',
+    backgroundColor: store.get().theme === 'light' ? '#f0ede4' : '#14130f',
     webPreferences: {
       preload: path.join(__dirname, '../preload.js'),
       contextIsolation: true,
@@ -362,14 +363,15 @@ async function applySettings(value) {
 function registerIpc() {
   ipcMain.handle('settings:get', () => getBootstrap());
   ipcMain.handle('settings:save', (_event, value) => applySettings(value));
-  ipcMain.handle('settings:export', async () => {
+  ipcMain.handle('settings:export', async (_event, value) => {
+    const settings = value === undefined ? store.get() : normalizeSettings(migrateSettings(value));
     const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
       title: t('config.exportTitle'),
       defaultPath: path.join(app.getPath('documents'), 'slipy-settings.json'),
       filters: [{ name: 'JSON', extensions: ['json'] }]
     });
     if (canceled || !filePath) return { canceled: true };
-    fs.writeFileSync(filePath, `${JSON.stringify(store.get(), null, 2)}\n`);
+    fs.writeFileSync(filePath, `${JSON.stringify(settings, null, 2)}\n`);
     return { canceled: false, path: filePath };
   });
   ipcMain.handle('settings:import', async () => {
@@ -389,7 +391,8 @@ function registerIpc() {
     try {
       migrated = migrateSettings(parsed);
     } catch (error) {
-      throw new Error(error.code === 'SETTINGS_TOO_NEW' ? t('error.importTooNew') : error.message);
+      throw new Error(error.code === 'SETTINGS_TOO_NEW' ? t('error.importTooNew')
+        : error.code === 'SETTINGS_INVALID' ? t('error.importInvalid') : error.message);
     }
     return { canceled: false, state: await applySettings(migrated) };
   });

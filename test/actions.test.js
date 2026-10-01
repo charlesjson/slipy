@@ -17,6 +17,15 @@ test('rejects when every command candidate fails', async () => {
   ]), /exited with code/);
 });
 
+test('a stalled command is killed and the next candidate still runs', { timeout: 7000 }, async () => {
+  let fallbackRan = false;
+  await firstAvailable([
+    [process.execPath, ['-e', "process.on('SIGTERM', () => {}); setTimeout(() => process.exit(0), 4000)"]],
+    { run: async () => { fallbackRan = true; } }
+  ]);
+  assert.equal(fallbackRan, true);
+});
+
 test('run reports the outcome and only notifies outside test runs', async () => {
   const notifications = [];
   const executor = new ActionExecutor({

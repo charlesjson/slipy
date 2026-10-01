@@ -93,14 +93,27 @@ fn handle_line_with_state(
         }
     };
     let result = match request.method.as_str() {
-        "ping" => Ok(json!({ "version": env!("CARGO_PKG_VERSION") })),
+        "ping" => Ok(json!({
+            "version": env!("CARGO_PKG_VERSION"),
+            "capabilities": ["listener-scoped-stop"]
+        })),
         "environment" => Ok(environment()),
         "probe_tools" => probe_tools(&request.params),
         "run_candidates" => run_candidates(&request.params),
         "start_x11_wheel" => start_x11_listener(state, Arc::clone(output), &request.params),
         "stop_x11_wheel" => {
-            stop_x11_listener(state);
-            Ok(json!({ "stopped": true }))
+            // Late cleanup from an older client must not stop a newer listener.
+            let matches = match request.params.get("listenerId") {
+                None => true,
+                Some(id) => state
+                    .x11_listener
+                    .as_ref()
+                    .is_some_and(|listener| id.as_u64() == Some(listener.id)),
+            };
+            if matches {
+                stop_x11_listener(state);
+            }
+            Ok(json!({ "stopped": matches }))
         }
         _ => Err(format!("unknown method: {}", request.method)),
     };
@@ -285,35 +298,47 @@ fn normalize_desktop() -> &'static str {
     if env_nonempty("SWAYSOCK") {
         return "sway";
     }
-    let names = [
+    let sources = [
         "XDG_CURRENT_DESKTOP",
         "XDG_SESSION_DESKTOP",
         "DESKTOP_SESSION",
     ]
-    .map(|key| env::var(key).unwrap_or_default())
-    .join(":")
-    .to_lowercase();
-    for (needle, family) in [
+    .map(|key| env::var(key).unwrap_or_default());
+    desktop_family(&sources)
+}
+
+fn desktop_family(sources: &[String]) -> &'static str {
+    // Keep precedence aligned with src/main/desktop-env.js: current desktop
+    // wins over legacy session labels, and specific variants win over Ubuntu.
+    let families = [
         ("hyprland", "hyprland"),
         ("sway", "sway"),
         ("kde", "kde"),
         ("plasma", "kde"),
-        ("gnome", "gnome"),
-        ("unity", "gnome"),
-        ("ubuntu", "gnome"),
-        ("pantheon", "gnome"),
+        ("kubuntu", "kde"),
         ("cinnamon", "cinnamon"),
+        ("x-cinnamon", "cinnamon"),
         ("xfce", "xfce"),
+        ("xubuntu", "xfce"),
         ("mate", "mate"),
         ("lxqt", "lxqt"),
         ("lxde", "lxde"),
+        ("lubuntu", "lxqt"),
         ("budgie", "budgie"),
         ("cosmic", "cosmic"),
         ("deepin", "deepin"),
         ("dde", "deepin"),
-    ] {
-        if names.contains(needle) {
-            return family;
+        ("gnome", "gnome"),
+        ("unity", "gnome"),
+        ("pantheon", "gnome"),
+        ("ubuntu", "gnome"),
+    ];
+    for source in sources {
+        let names = source.to_lowercase();
+        for (needle, family) in families {
+            if names.contains(needle) {
+                return family;
+            }
         }
     }
     "unknown"
@@ -595,20 +620,85 @@ fn command_error_with(
 
 #[cfg(test)]
 mod tests {
-    use super::{handle_line, run_candidates};
+    use super::{
+        AppState, X11Listener, desktop_family, handle_line, handle_line_with_state, run_candidates,
+    };
     use serde_json::json;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Arc, Mutex};
 
     #[test]
     fn responds_to_ping() {
         let response = handle_line(r#"{"id":1,"method":"ping"}"#);
         assert_eq!(response.id, 1);
         assert!(response.error.is_none());
+        assert_eq!(
+            response.result.unwrap()["capabilities"],
+            json!(["listener-scoped-stop"])
+        );
     }
 
     #[test]
     fn rejects_unknown_methods() {
         let response = handle_line(r#"{"id":2,"method":"missing"}"#);
         assert!(response.error.unwrap().contains("unknown method"));
+    }
+
+    #[test]
+    fn desktop_variants_win_over_generic_ubuntu_labels() {
+        for (name, family) in [
+            ("ubuntu:XFCE", "xfce"),
+            ("ubuntu:MATE", "mate"),
+            ("ubuntu:Budgie", "budgie"),
+            ("ubuntu:Cinnamon", "cinnamon"),
+            ("kubuntu", "kde"),
+            ("xubuntu", "xfce"),
+            ("lubuntu", "lxqt"),
+        ] {
+            assert_eq!(desktop_family(&[name.into()]), family, "{name}");
+        }
+    }
+
+    #[test]
+    fn desktop_current_session_precedes_legacy_session_names() {
+        assert_eq!(
+            desktop_family(&["GNOME".into(), "".into(), "plasma".into()]),
+            "gnome"
+        );
+        assert_eq!(
+            desktop_family(&["unknown".into(), "MATE".into(), "gnome".into()]),
+            "mate"
+        );
+    }
+
+    #[test]
+    fn stale_stop_requests_do_not_stop_the_active_listener() {
+        let stop = Arc::new(AtomicBool::new(false));
+        let mut state = AppState {
+            x11_listener: Some(X11Listener {
+                id: 2,
+                stop: Arc::clone(&stop),
+                thread: std::thread::spawn(|| {}),
+            }),
+        };
+        let output = Arc::new(Mutex::new(std::io::stdout()));
+        let stale = handle_line_with_state(
+            r#"{"id":1,"method":"stop_x11_wheel","params":{"listenerId":1}}"#,
+            &mut state,
+            &output,
+        );
+        assert_eq!(stale.result.unwrap()["stopped"], false);
+        assert!(!stop.load(Ordering::Relaxed));
+        assert!(state.x11_listener.is_some());
+
+        let active = handle_line_with_state(
+            r#"{"id":2,"method":"stop_x11_wheel","params":{"listenerId":2}}"#,
+            &mut state,
+            &output,
+        );
+        assert_eq!(active.result.unwrap()["stopped"], true);
+        assert!(stop.load(Ordering::Relaxed));
+        assert!(state.x11_listener.is_none());
     }
 
     #[test]

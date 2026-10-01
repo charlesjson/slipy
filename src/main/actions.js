@@ -6,14 +6,30 @@ const { actionCandidates, workspaceCandidates } = require('./action-backends');
 const { launchCandidates } = require('./desktop-apps');
 const { t } = require('./i18n');
 
+const COMMAND_TIMEOUT_MS = 2500;
+
+function commandTimeout(command) {
+  return Object.assign(new Error(t('error.commandTimeout', { command })), {
+    code: 'COMMAND_TIMEOUT', command
+  });
+}
+
 function detached(command, args) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { stdio: 'ignore' });
-    child.once('error', reject);
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(commandTimeout(command));
+    }, COMMAND_TIMEOUT_MS);
+    timer.unref();
+    child.once('error', (error) => { clearTimeout(timer); reject(error); });
     child.once('close', (code) => {
+      clearTimeout(timer);
       if (code === 0) return resolve();
       const error = new Error(t('error.exitCode', { command, code }));
       error.code = 'COMMAND_FAILED';
+      error.command = command;
+      error.exitCode = code;
       reject(error);
     });
   });
@@ -21,7 +37,8 @@ function detached(command, args) {
 
 function exec(command, args = []) {
   return new Promise((resolve, reject) => {
-    execFile(command, args, { timeout: 2500, maxBuffer: 128 * 1024 }, (error, stdout) => {
+    execFile(command, args, { timeout: COMMAND_TIMEOUT_MS, killSignal: 'SIGKILL', maxBuffer: 128 * 1024 }, (error, stdout) => {
+      if (error?.killed && error.signal === 'SIGKILL' && error.code === null) return reject(commandTimeout(command));
       if (error) reject(error); else resolve(stdout);
     });
   });

@@ -106,3 +106,58 @@ test('settings store persists atomically and reloads', () => {
   assert.equal(new SettingsStore(file).load().edgeThickness, 17);
   assert.deepEqual(fs.readdirSync(path.dirname(file)), ['settings.json']);
 });
+
+test('invalid root values normalize to defaults instead of throwing', () => {
+  for (const input of [null, false, 42, 'invalid', []]) {
+    assert.deepEqual(normalizeSettings(input), normalizeSettings({}));
+  }
+});
+
+test('imports reject non-object JSON roots before migration', () => {
+  for (const input of [undefined, null, false, 42, 'invalid', []]) {
+    assert.throws(() => migrateSettings(input), { code: 'SETTINGS_INVALID' });
+  }
+});
+
+test('saving a non-object root leaves saved settings and the file untouched', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'slipy-invalid-settings-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const file = path.join(root, 'settings.json');
+  const store = new SettingsStore(file);
+  const previous = store.save({ edgeThickness: 17, theme: 'light' });
+  const persisted = fs.readFileSync(file, 'utf8');
+  for (const input of [undefined, null, false, 42, 'invalid', []]) {
+    assert.throws(() => store.save(input), { code: 'SETTINGS_INVALID' });
+    assert.deepEqual(store.get(), previous);
+    assert.equal(fs.readFileSync(file, 'utf8'), persisted);
+  }
+  assert.deepEqual(fs.readdirSync(root), ['settings.json']);
+});
+
+test('loading invalid JSON roots still recovers defaults without rewriting the file', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'slipy-settings-recovery-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const file = path.join(root, 'settings.json');
+  for (const input of [null, false, 42, 'invalid', []]) {
+    const contents = JSON.stringify(input);
+    fs.writeFileSync(file, contents);
+    assert.deepEqual(new SettingsStore(file).load(), normalizeSettings({}));
+    assert.equal(fs.readFileSync(file, 'utf8'), contents);
+  }
+});
+
+test('a failed settings write keeps the last saved value and removes its temporary file', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'slipy-settings-failure-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const file = path.join(root, 'settings.json');
+  const store = new SettingsStore(file);
+  store.save({ edgeThickness: 17 });
+  const persisted = fs.readFileSync(file, 'utf8');
+  const error = Object.assign(new Error('read-only filesystem'), { code: 'EROFS' });
+  t.mock.method(fs, 'renameSync', () => { throw error; });
+
+  assert.throws(() => store.save({ edgeThickness: 23 }), { code: 'EROFS' });
+  assert.equal(store.get().edgeThickness, 17);
+  assert.equal(fs.readFileSync(file, 'utf8'), persisted);
+  assert.deepEqual(fs.readdirSync(root), ['settings.json']);
+});
