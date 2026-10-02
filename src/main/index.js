@@ -21,6 +21,7 @@ const { probeTools: probePathTools } = require('./tool-probe');
 const { BackendClient, backendExecutable } = require('./backend-client');
 const i18n = require('./i18n');
 const { t } = i18n;
+const { getWindowIcon, getTrayIcon } = require('./icons');
 const { executeSystemUninstaller, installationFor, startCleanupWorker, userArtifactPaths } = require('./uninstall');
 
 let mainWindow;
@@ -106,7 +107,7 @@ function createWindow() {
     minHeight: Math.min(480, height),
     show: false,
     title: 'Slipy',
-    icon: path.join(__dirname, '../../assets/icon.png'),
+    icon: getWindowIcon(nativeImage),
     backgroundColor: store.get().theme === 'light' ? '#f0ede4' : '#14130f',
     webPreferences: {
       preload: path.join(__dirname, '../preload.js'),
@@ -213,7 +214,7 @@ async function setPaused(next) {
 }
 
 function createTray() {
-  const icon = nativeImage.createFromPath(path.join(__dirname, '../../assets/tray.svg'));
+  const icon = getTrayIcon(nativeImage);
   tray = new Tray(icon);
   applyTrayLabels();
   tray.on('click', showWindow);

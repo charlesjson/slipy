@@ -22,7 +22,7 @@ test('offline installer installs and uninstalls a user payload in XDG paths', as
   fs.writeFileSync(path.join(bundle, 'payload', 'resources', 'app.asar'), 'fixture');
   fs.writeFileSync(path.join(bundle, 'payload', 'slipy'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
 
-  const env = { ...process.env, HOME: home, XDG_DATA_HOME: data, XDG_CONFIG_HOME: path.join(root, 'config') };
+  const env = { ...process.env, HOME: home, XDG_DATA_HOME: data, XDG_CONFIG_HOME: path.join(root, 'config'), DBUS_SESSION_BUS_ADDRESS: '' };
   const archive = path.join(root, 'payload.tar.gz');
   const installer = path.join(root, 'installer.run');
   await execFileAsync('tar', ['-czf', archive, '-C', bundle, '.']);
@@ -38,7 +38,20 @@ test('offline installer installs and uninstalls a user payload in XDG paths', as
   assert.equal(fs.statSync(path.join(app, 'slipy')).mode & 0o777, 0o755);
   assert.equal(fs.realpathSync(binary), path.join(app, 'slipy'));
   assert.match(fs.readFileSync(desktop, 'utf8'), new RegExp(`Exec="${app}/slipy"`));
+  assert.equal(fs.readFileSync(desktop, 'utf8').split('\n').find((line) => line.startsWith('Icon=')), `Icon=${data}/icons/hicolor/512x512/apps/slipy.png`);
   assert.equal(fs.existsSync(path.join(app, 'uninstall.sh')), true);
+
+  const tools = path.join(root, 'tools');
+  const refreshLog = path.join(root, 'refresh.log');
+  fs.mkdirSync(tools);
+  for (const command of ['kbuildsycoca6', 'dbus-send']) {
+    fs.writeFileSync(path.join(tools, command), `#!/bin/sh\nprintf '%s\\n' '${command}' >> "$SLIPY_TEST_REFRESH_LOG"\n`, { mode: 0o755 });
+  }
+  await execFileAsync(installer, ['--user', '--no-launch'], { env: {
+    ...env, PATH: `${tools}:${env.PATH}`, XDG_CURRENT_DESKTOP: 'KDE',
+    DBUS_SESSION_BUS_ADDRESS: 'unix:path=/tmp/slipy-test-unconnected-bus', SLIPY_TEST_REFRESH_LOG: refreshLog
+  } });
+  assert.equal(fs.readFileSync(refreshLog, 'utf8'), 'kbuildsycoca6\ndbus-send\n');
 
   const cache = path.join(root, 'cache');
   const state = path.join(root, 'state');

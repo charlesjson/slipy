@@ -57,8 +57,21 @@ else
 fi
 
 refresh_desktop() {
+  local builder desktop="${XDG_CURRENT_DESKTOP:-}"
   command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$(dirname "$DESKTOP_FILE")" >/dev/null 2>&1 || true
   command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -f -t "$(dirname "$(dirname "$(dirname "$ICON_FILE")")")" >/dev/null 2>&1 || true
+  # Plasma caches both desktop entries and missing icon lookups in long-lived
+  # processes. Never access a desktop user's session bus from a root install.
+  if [[ "$MODE" == "user" && -n "${DBUS_SESSION_BUS_ADDRESS:-}" && "${desktop,,}" == *kde* ]]; then
+    for builder in kbuildsycoca6 kbuildsycoca5; do
+      if command -v "$builder" >/dev/null 2>&1; then
+        "$builder" >/dev/null 2>&1 || true
+        break
+      fi
+    done
+    command -v dbus-send >/dev/null 2>&1 && dbus-send --session --type=signal \
+      /KIconLoader org.kde.KIconLoader.iconChanged int32:0 >/dev/null 2>&1 || true
+  fi
 }
 
 is_managed_install() {
@@ -211,6 +224,7 @@ desktop_exec=${desktop_exec//\"/\\\"}
 desktop_exec=${desktop_exec//\`/\\\`}
 desktop_exec=${desktop_exec//\$/\\\$}
 desktop_exec=${desktop_exec//%/%%}
+desktop_icon=${ICON_FILE//\\/\\\\}
 rm -f -- "$BIN_NEW" "$DESKTOP_NEW" "$ICON_NEW"
 ln -s -- "${APP_DIR}/slipy" "$BIN_NEW"
 install -m 0644 "${SCRIPT_DIR}/icon.png" "$ICON_NEW"
@@ -220,7 +234,7 @@ Type=Application
 Name=${APP_NAME}
 Comment=Screen edge wheel actions and global shortcuts
 Exec="${desktop_exec}/slipy" %U
-Icon=slipy
+Icon=${desktop_icon}
 Terminal=false
 Categories=Utility;
 StartupNotify=true

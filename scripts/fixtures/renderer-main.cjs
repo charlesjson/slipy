@@ -3,10 +3,10 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, nativeImage } = require('electron');
 
 // Every fixture uses temporary Chromium storage supplied by the launcher.
-// No production app modules, global shortcuts, plugins or native hooks run.
+// No application startup, global shortcuts, plugins or native hooks run.
 app.setPath('userData', process.env.SLIPY_RENDERER_USER_DATA);
 app.disableHardwareAcceleration();
 // X11 also works through XWayland and xvfb-run; permit native Wayland runs
@@ -138,6 +138,15 @@ function setCloseAction(value) {
 
 async function main() {
   await app.whenReady();
+
+  await check('desktop and tray icons decode to visible native images', async () => {
+    const { getWindowIcon, getTrayIcon } = require(path.join(root, 'src/main/icons'));
+    for (const [name, icon] of [['window', getWindowIcon(nativeImage)], ['tray', getTrayIcon(nativeImage)]]) {
+      assert.equal(icon.isEmpty(), false, `${name} icon must not be empty`);
+      assert.ok(icon.toBitmap().some((byte, index) => index % 4 === 3 && byte > 0), `${name} icon must have visible pixels`);
+    }
+    assert.deepEqual(getTrayIcon(nativeImage).getSize(), { width: 32, height: 32 });
+  });
 
   await check('runtime broadcasts preserve an unsaved close action', async (fixture) => {
     await fixture.run(setCloseAction('tray'));
