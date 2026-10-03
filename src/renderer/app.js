@@ -172,6 +172,7 @@ function stopRecording() {
   if (!recorder) return;
   window.removeEventListener('keydown', recorder.onKey, true);
   recorder.button.classList.remove('recording');
+  recorder.button.textContent = t('shortcuts.recordButton');
   recorder.button.setAttribute('aria-pressed', 'false');
   recorder.input.value = recorder.shortcut.accelerator;
   recorder.input.placeholder = t('shortcuts.placeholder');
@@ -194,6 +195,7 @@ function startRecording(shortcut, input, button) {
   };
   recorder = { shortcut, input, button, onKey };
   button.classList.add('recording');
+  button.textContent = t('shortcuts.cancelRecording');
   button.setAttribute('aria-pressed', 'true');
   input.focus();
   input.value = '';
@@ -211,9 +213,9 @@ function createShortcutRow(shortcut) {
   enabled.setAttribute('aria-label', t('shortcuts.enable'));
   const accelerator = document.createElement('input');
   accelerator.type = 'text'; accelerator.value = shortcut.accelerator; accelerator.placeholder = t('shortcuts.placeholder');
-  accelerator.setAttribute('aria-label', t('shortcuts.heading'));
+  accelerator.setAttribute('aria-label', t('shortcuts.keys'));
   const record = document.createElement('button');
-  record.className = 'icon-button record'; record.textContent = '⌨'; record.title = t('shortcuts.record');
+  record.className = 'record-button record'; record.textContent = t('shortcuts.recordButton'); record.title = t('shortcuts.record');
   record.setAttribute('aria-label', t('shortcuts.record'));
   record.setAttribute('aria-pressed', 'false');
   const action = document.createElement('select');
